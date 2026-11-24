@@ -1,0 +1,6 @@
+{
+  "name": "JisrBot",
+  "description": "منصة ذكاء اصطناعي لربط الإنسان بالروبوت (ESP32) عبر الإنترنت مع محادثة صوتية ونموذج يد ثلاثي الأبعاد للغة الإشارة.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
