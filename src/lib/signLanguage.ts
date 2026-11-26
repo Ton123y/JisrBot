@@ -97,8 +97,9 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'greeting',
     descriptionAr: 'كف مفتوح مرفوع مع تلويح لطيف للترحيب.',
     keywords: [
-      'hello', 'hi', 'welcome', 'hey', 'wave', 'greetings',
-      'مرحبا', 'مرحباً', 'اهلا', 'أهلا', 'أهلاً', 'سلام', 'عليكم', 'هاي', 'تحية', 'لوح', 'تلوح', 'صباح', 'مساء',
+      'hello', 'hi', 'welcome', 'hey', 'wave', 'greetings', 'morning',
+      'مرحبا', 'مرحباً', 'اهلا', 'أهلا', 'أهلاً', 'سلام', 'عليكم', 'هاي', 'تحية', 'لوح', 'تلوح', 'صباح', 'الخير', 'مساء',
+      'نورت', 'نورتي', 'منور', 'بيك', 'بيكي', 'ازيك', 'إزيك', 'اخبارك', 'أخبارك',
     ],
     oscillation: 'wave',
     pose: {
@@ -123,8 +124,9 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'command',
     descriptionAr: 'قبضة مغلقة تومئ للأمام للتأكيد والموافقة.',
     keywords: [
-      'yes', 'agree', 'confirm', 'sure', 'indeed', 'true', 'right',
-      'نعم', 'أجل', 'اجل', 'ايوه', 'أيوه', 'تمام', 'حاضر', 'موافق', 'صح', 'بالتأكيد', 'طبعاً', 'طبعا', 'أكيد', 'اكيد',
+      'yes', 'agree', 'confirm', 'sure', 'indeed', 'true', 'right', 'honest',
+      'نعم', 'أجل', 'اجل', 'ايوه', 'أيوه', 'أه', 'اه', 'تمام', 'حاضر', 'موافق', 'صح', 'بالتأكيد', 'طبعاً', 'طبعا', 'أكيد', 'اكيد',
+      'فهمت', 'خلاص', 'مظبوط', 'مضبوط', 'ماشي', 'عظيم', 'بالضبط', 'صادق',
     ],
     oscillation: 'nod',
     pose: {
@@ -149,8 +151,9 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'command',
     descriptionAr: 'التقاء السبابة والوسطى مع الإبهام وحركة رفض جانبية.',
     keywords: [
-      'no', 'nope', 'not', 'cancel', 'reject', 'never', 'false', 'wrong',
-      'لا', 'لأ', 'مش', 'رفض', 'غير', 'ممنوع', 'خطأ', 'غلط', 'كلا', 'لن', 'لم',
+      'no', 'nope', 'not', 'cancel', 'reject', 'never', 'false', 'wrong', 'tired', 'cry',
+      'لا', 'لأ', 'مش', 'رفض', 'غير', 'ممنوع', 'خطأ', 'غلط', 'كلا', 'لن', 'لم', 'مافيش', 'مفيش', 'بلاش',
+      'عيب', 'كداب', 'حرامي', 'تعبان', 'يبكي', 'يشتم', 'ألم', 'الم',
     ],
     oscillation: 'shake',
     pose: {
@@ -176,7 +179,7 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     descriptionAr: 'كف مفرود يتحرك للأمام بانحناءة تقدير وامتنان.',
     keywords: [
       'thank', 'thanks', 'appreciate', 'grateful',
-      'شكر', 'شكراً', 'شكرا', 'متشكر', 'تسلم', 'ممنون', 'يعطيك', 'العافية',
+      'شكر', 'شكراً', 'شكرا', 'متشكر', 'تسلم', 'ممنون', 'يعطيك', 'العافية', 'أشكرك', 'اشكرك', 'تقدير',
     ],
     oscillation: 'nod',
     pose: {
@@ -200,7 +203,11 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     glossAr: 'أحبك / تقدير',
     category: 'emotion',
     descriptionAr: 'إشارة المحبة العالمية: الإبهام والسبابة والخنصر مفرودة.',
-    keywords: ['love', 'heart', 'ily', 'like', 'احبك', 'أحبك', 'حب', 'سعادة', 'جميل', 'سعيد', 'لطيف'],
+    keywords: [
+      'love', 'heart', 'ily', 'like', 'friend', 'brother', 'miss',
+      'احبك', 'أحبك', 'بحبك', 'بحب', 'حب', 'سعادة', 'جميل', 'سعيد', 'لطيف', 'مبسوط', 'متحمس', 'تحب',
+      'أخويا', 'اخويا', 'صاحبي', 'واحشني', 'مراتي', 'خطيبتي',
+    ],
     oscillation: 'pulse',
     pose: {
       wristPitch: -0.05,
@@ -224,8 +231,9 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'command',
     descriptionAr: 'رفع اليد بإشارة الإبهام للأعلى لطلب أو تقديم المساعدة.',
     keywords: [
-      'help', 'assist', 'support', 'service',
-      'مساعدة', 'ساعد', 'اساعد', 'أساعد', 'مساعد', 'دعم', 'خدمة', 'أستطيع', 'استطيع', 'يمكنني',
+      'help', 'assist', 'support', 'service', 'need', 'want', 'doctor',
+      'مساعدة', 'ساعد', 'اساعد', 'أساعد', 'اساعدك', 'أساعدك', 'هساعدك', 'ساعدني', 'مساعد', 'دعم', 'خدمة',
+      'أستطيع', 'استطيع', 'يمكنني', 'محتاج', 'أحتاج', 'احتاج', 'عايز', 'تقدر', 'أقدر', 'اقدر', 'ممكن', 'دكتور',
     ],
     oscillation: 'nod',
     pose: {
@@ -251,7 +259,7 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     descriptionAr: 'كف مفرود ومشدود للأمام لإيقاف الحركة فوراً.',
     keywords: [
       'stop', 'halt', 'wait', 'off', 'close', 'disable', 'pause',
-      'توقف', 'قف', 'استنى', 'اقفل', 'أوقف', 'إيقاف', 'اطفئ', 'أطفئ', 'إطفاء', 'انطفئ', 'مطفأ',
+      'توقف', 'قف', 'استنى', 'اقفل', 'أوقف', 'وقف', 'وقّف', 'إيقاف', 'اطفئ', 'أطفئ', 'اطفي', 'إطفاء', 'انطفئ', 'مطفأ',
     ],
     oscillation: 'none',
     pose: {
@@ -276,8 +284,10 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'command',
     descriptionAr: 'توجيه السبابة للأمام لبدء التنفيذ أو التشغيل.',
     keywords: [
-      'go', 'start', 'run', 'open', 'on', 'execute', 'send', 'active', 'motor',
-      'انطلق', 'ابدأ', 'شغل', 'شغّل', 'تشغيل', 'افتح', 'نفذ', 'تنفيذ', 'ارسل', 'أرسل', 'إرسال', 'موتور', 'محرك', 'حرك', 'تحريك',
+      'go', 'start', 'run', 'open', 'on', 'execute', 'send', 'active', 'motor', 'now', 'fast', 'tomorrow', 'street',
+      'انطلق', 'ابدأ', 'نبدأ', 'شغل', 'شغّل', 'تشغيل', 'افتح', 'نفذ', 'تنفيذ', 'انفذلك', 'أنفذلك',
+      'ارسل', 'أرسل', 'إرسال', 'ابعت', 'بعتها', 'موتور', 'محرك', 'حرك', 'تحريك', 'دلوقتي', 'حالاً', 'حالا', 'فوراً', 'اعمل', 'نعمل', 'تعملها',
+      'بسرعة', 'بكرة', 'شارع',
     ],
     oscillation: 'nod',
     pose: {
@@ -302,8 +312,9 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'emotion',
     descriptionAr: 'إبهام مرفوع للأعلى دلالة على الجودة والرضا.',
     keywords: [
-      'good', 'great', 'nice', 'excellent', 'fine', 'well', 'best', 'awesome',
+      'good', 'great', 'nice', 'excellent', 'fine', 'well', 'best', 'awesome', 'laugh', 'smile',
       'جيد', 'ممتاز', 'رائع', 'كويس', 'عظيم', 'بخير', 'سرور', 'أحسن', 'افضل', 'أفضل',
+      'حلو', 'أوي', 'اوي', 'يضحك', 'افردها',
     ],
     oscillation: 'pulse',
     pose: {
@@ -375,7 +386,8 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     descriptionAr: 'رفع السبابة لتوجيه الانتباه أو الإشارة.',
     keywords: [
       'point', 'look', 'this', 'that', 'you', 'here', 'there', 'attention',
-      'اشر', 'أشر', 'انظر', 'انتباه', 'هنا', 'هناك', 'هذا', 'هذه', 'أنت', 'انت', 'هو', 'هي', 'إشارة', 'اشارة',
+      'اشر', 'أشر', 'انظر', 'انتباه', 'هنا', 'هناك', 'هذا', 'هذه', 'أنت', 'انت', 'هو', 'هي', 'إشارة', 'اشارة', 'إشارتك', 'اشارتك',
+      'ده', 'دي', 'دول', 'بص', 'كده', 'عليك', 'لك', 'ليك',
     ],
     oscillation: 'none',
     pose: {
@@ -422,7 +434,11 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     glossAr: 'يد مفتوحة / الكل',
     category: 'command',
     descriptionAr: 'فرد جميع الأصابع الخمسة بالكامل.',
-    keywords: ['open', 'release', 'hand', 'all', 'everything', 'يد', 'فتح', 'بسط', 'الكل', 'جميع', 'كل'],
+    keywords: [
+      'open', 'release', 'hand', 'all', 'everything', 'book', 'home', 'house', 'room', 'today', 'window',
+      'يد', 'فتح', 'بسط', 'الكل', 'جميع', 'كل', 'سوا', 'معاً', 'معا', 'موضوع', 'حاجة', 'شيء', 'أي', 'اي',
+      'كتاب', 'بيت', 'منزل', 'أوضة', 'النهاردة', 'شباك', 'كلية', 'الجمعة', 'ارمي', 'ضهرك',
+    ],
     oscillation: 'none',
     pose: {
       wristPitch: 0,
@@ -445,7 +461,7 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     glossAr: 'واحد / أنا',
     category: 'number',
     descriptionAr: 'رفع إصبع السبابة فقط.',
-    keywords: ['one', '1', 'i', 'me', 'واحد', '١', 'أنا', 'انا', 'أول'],
+    keywords: ['one', '1', 'i', 'me', 'واحد', '١', 'أنا', 'انا', 'أول', 'اول', 'عندي', 'معي', 'معاك', 'معايا'],
     oscillation: 'none',
     pose: {
       wristPitch: 0,
@@ -468,7 +484,7 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     glossAr: 'رقم ٢ (اثنان)',
     category: 'number',
     descriptionAr: 'رفع السبابة والوسطى.',
-    keywords: ['two', '2', 'both', 'اثنان', 'اتنين', '٢', 'ثاني'],
+    keywords: ['two', '2', 'both', 'اثنان', 'اتنين', '٢', 'ثاني', 'تاني'],
     oscillation: 'none',
     pose: {
       wristPitch: 0,
@@ -585,7 +601,8 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     descriptionAr: 'فرد الإبهام والخنصر إشارةً إلى التواصل والاتصال.',
     keywords: [
       'call', 'connect', 'contact', 'speak', 'talk', 'message', 'voice', 'chat', 'internet',
-      'تواصل', 'اتصال', 'كلمني', 'اتكلم', 'تحدث', 'حديث', 'رسالة', 'صوت', 'إنترنت', 'انترنت', 'ربط', 'شبكة', 'سؤال',
+      'تواصل', 'اتصال', 'كلمني', 'اتكلم', 'نتكلم', 'تحدث', 'حديث', 'كلام', 'رسالة', 'صوت', 'بالصوت',
+      'إنترنت', 'انترنت', 'ربط', 'شبكة', 'قول', 'قولي', 'أشرح', 'اشرح', 'أترجم', 'اترجم', 'رد', 'ردودي', 'لغة', 'مصرية', 'مصري',
     ],
     oscillation: 'shake',
     pose: {
@@ -610,8 +627,10 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     category: 'greeting',
     descriptionAr: 'سبابة معقوفة بشكل علامة استفهام للاستفسار والسؤال.',
     keywords: [
-      'what', 'why', 'how', 'when', 'where', 'who', 'question', 'ask',
+      'what', 'why', 'how', 'when', 'where', 'who', 'question', 'ask', 'confused',
       'ماذا', 'لماذا', 'كيف', 'متى', 'أين', 'اين', 'من', 'هل', 'ما', 'اسأل', 'استفسار',
+      'سؤال', 'إزاي', 'ازاي', 'إيه', 'ايه', 'فين', 'امتى', 'إمتى', 'ليه', 'مين', 'تحب', 'عامل',
+      'مشوش', 'مكار', 'يا', 'لهوي',
     ],
     oscillation: 'shake',
     pose: {
@@ -635,7 +654,7 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     glossAr: 'إضاءة / مصباح',
     category: 'command',
     descriptionAr: 'تفتح الأصابع للأعلى مع حركة إشعاع دلالة على الضوء والمصباح.',
-    keywords: ['light', 'led', 'lamp', 'bright', 'on', 'مصباح', 'ضوء', 'إضاءة', 'اضاءة', 'أضئ', 'اضئ', 'لمبة', 'نور', 'مضاء'],
+    keywords: ['light', 'led', 'lamp', 'bright', 'on', 'مصباح', 'ضوء', 'إضاءة', 'اضاءة', 'أضئ', 'اضئ', 'لمبة', 'نور', 'مضاء', 'منور'],
     oscillation: 'pulse',
     pose: {
       wristPitch: -0.18,
@@ -658,7 +677,11 @@ export const SIGN_LEXICON: Record<SignId, SignDefinition> = {
     glossAr: 'روبوت / نظام',
     category: 'command',
     descriptionAr: 'وضعية مفاصل ميكانيكية قائمة تمثل الروبوت أو وحدة التحكم.',
-    keywords: ['robot', 'esp32', 'mqtt', 'servo', 'device', 'system', 'ai', 'روبوت', 'الروبوت', 'جهاز', 'ذكاء', 'اصطناعي', 'نظام', 'سيرفر', 'مفصل'],
+    keywords: [
+      'robot', 'esp32', 'mqtt', 'servo', 'device', 'system', 'ai', 'car', 'engineer', 'plumber',
+      'روبوت', 'الروبوت', 'جهاز', 'ذكاء', 'اصطناعي', 'نظام', 'سيرفر', 'مفصل', 'أوامرك', 'أوامر',
+      'عربية', 'مهندس', 'سباك',
+    ],
     oscillation: 'pulse',
     pose: {
       wristPitch: 0,
@@ -767,10 +790,48 @@ for (const sign of SIGN_LIST) {
   }
 }
 
+const SELF_NAME_TOKENS = new Set([
+  'jisrbot',
+  'jisr',
+  'جسر',
+  'جيسر',
+  'جسربوت',
+  'جيسربوت',
+]);
+
+const EXPRESSIVE_WORD_GESTURES: SignId[] = [
+  'OPEN_HAND',
+  'CALL_ME',
+  'POINT',
+  'GOOD',
+  'HELP',
+  'OK',
+  'GO',
+  'ROBOT',
+];
+
+function inferWholeWordGesture(word: string): SignId {
+  const clean = word.trim().toLowerCase();
+  if (!clean) return 'OPEN_HAND';
+  // Light semantic prefix/pattern hints for Egyptian & standard Arabic stems
+  if (/^(ب|م|ي|ت|ن)?(كلم|قول|شرح|ترجم|سمع|صوت|رد)/.test(clean)) return 'CALL_ME';
+  if (/^(ب|م|ي|ت|ن)?(ساعد|عاوز|عايز|محتاج|طلب|خدم)/.test(clean)) return 'HELP';
+  if (/^(ب|م|ي|ت|ن)?(عمل|شغل|حرك|نفذ|روح|بد|بعت)/.test(clean)) return 'GO';
+  if (/^(ب|م|ي|ت|ن)?(فهم|عرف|صح|تمام|اكيد|مظبوط)/.test(clean)) return 'OK';
+  if (/^(ب|م|ي|ت|ن)?(وقف|قفل|طفي|منع|مش)/.test(clean)) return 'STOP';
+  if (/^(ب|م|ي|ت|ن)?(نور|ضو|لمب)/.test(clean)) return 'LIGHT';
+  if (/^(ه|د|ذ|ك|ل|ف|م).{1,3}$/.test(clean)) return 'POINT';
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+  }
+  return EXPRESSIVE_WORD_GESTURES[hash % EXPRESSIVE_WORD_GESTURES.length];
+}
+
 /**
- * Translates an ENTIRE Arabic/English AI response sentence word-by-word into playable 3D sign steps.
- * Every meaningful word in the sentence maps either to a semantic SignId in SIGN_LEXICON
- * or to its primary Arabic/English fingerspelled letter handshape so nothing in the AI reply is skipped.
+ * Translates an ENTIRE Arabic/English AI response sentence word-by-word into playable 3D sign steps
+ * using ONLY full semantic gestures and whole-word signs.
+ * Individual fingerspelling letters are used EXCLUSIVELY when saying the assistant's own name (JisrBot / جسر).
  */
 export function translateSentenceToSignSteps(text: string): SignStep[] {
   const cleaned = text
@@ -803,6 +864,32 @@ export function translateSentenceToSignSteps(text: string): SignStep[] {
     const lower = rawWord.toLowerCase();
     const candidates = stripArabicDiacriticsAndPrefixes(lower);
 
+    // 1. Only fingerspell letters when saying the assistant's own name (JisrBot / جسر)
+    if (candidates.some((c) => SELF_NAME_TOKENS.has(c))) {
+      const nameChars = Array.from(lower).filter((ch) => /[a-z\u0621-\u064A]/i.test(ch));
+      nameChars.forEach((ch, cIdx) => {
+        const arInfo = ARABIC_CHAR_MAP[ch];
+        const poseIdx = arInfo
+          ? arInfo.poseIdx
+          : Math.abs(ch.toUpperCase().charCodeAt(0) - 65) % LETTER_POSES.length;
+        const letterLabel = arInfo ? arInfo.label : ch.toUpperCase();
+        steps.push({
+          key: `w_${wIdx}_ch_${cIdx}_${letterLabel}`,
+          signId: `LETTER_${letterLabel}`,
+          sourceWord: rawWord,
+          glossAr: `هجاء الاسم "${rawWord}" (${letterLabel})`,
+          glossEn: `Spell Name "${rawWord}" (${letterLabel})`,
+          descriptionAr: `تهجئة حرف (${letterLabel}) لقول اسم ${rawWord}`,
+          oscillation: 'none',
+          pose: LETTER_POSES[poseIdx],
+          durationMs: 620,
+          isFingerspelled: true,
+        });
+      });
+      continue;
+    }
+
+    // 2. Semantic keyword lookup (whole word -> dedicated gesture)
     let matchedId: SignId | undefined;
     for (const candidate of candidates) {
       matchedId = KEYWORD_TO_SIGN.get(candidate);
@@ -820,13 +907,13 @@ export function translateSentenceToSignSteps(text: string): SignStep[] {
         descriptionAr: def.descriptionAr,
         oscillation: def.oscillation,
         pose: def.pose,
-        durationMs: 1100,
+        durationMs: 1050,
         isFingerspelled: false,
       });
       continue;
     }
 
-    // Numeric word fallback
+    // 3. Numeric word mapping
     if (/^\d+$/.test(rawWord)) {
       const firstDigit = rawWord[0];
       const numSignMap: Record<string, SignId> = {
@@ -853,46 +940,21 @@ export function translateSentenceToSignSteps(text: string): SignStep[] {
       continue;
     }
 
-    // Fingerspell unknown word using up to 2 representative character handshapes (keeps full sentence covered & fluid)
-    const cleanRoot = candidates[candidates.length - 1] || lower;
-    const chars = Array.from(cleanRoot).filter((ch) => /[a-z\u0621-\u064A]/i.test(ch));
-    const sampleChars = chars.length <= 2 ? chars : [chars[0], chars[chars.length - 1]];
-
-    if (sampleChars.length === 0) {
-      const def = SIGN_LEXICON.OPEN_HAND;
-      steps.push({
-        key: `w_${wIdx}_OPEN`,
-        signId: def.id,
-        sourceWord: rawWord,
-        glossAr: rawWord,
-        glossEn: def.glossEn,
-        descriptionAr: `إشارة تعبيرية لكلمة "${rawWord}"`,
-        oscillation: 'none',
-        pose: def.pose,
-        durationMs: 850,
-        isFingerspelled: true,
-      });
-    } else {
-      sampleChars.forEach((ch, cIdx) => {
-        const arInfo = ARABIC_CHAR_MAP[ch];
-        const poseIdx = arInfo
-          ? arInfo.poseIdx
-          : Math.abs(ch.toUpperCase().charCodeAt(0) - 65) % LETTER_POSES.length;
-        const letterLabel = arInfo ? arInfo.label : ch.toUpperCase();
-        steps.push({
-          key: `w_${wIdx}_ch_${cIdx}_${letterLabel}`,
-          signId: `LETTER_${letterLabel}`,
-          sourceWord: rawWord,
-          glossAr: `هجاء "${rawWord}" (${letterLabel})`,
-          glossEn: `Spell "${rawWord}" (${letterLabel})`,
-          descriptionAr: `تهجئة حرف (${letterLabel}) ضمن كلمة "${rawWord}"`,
-          oscillation: 'none',
-          pose: LETTER_POSES[poseIdx],
-          durationMs: 680,
-          isFingerspelled: true,
-        });
-      });
-    }
+    // 4. Whole-word expressive gesture (NO letters/fingerspelling for regular words!)
+    const inferredSignId = inferWholeWordGesture(candidates[candidates.length - 1] || lower);
+    const def = SIGN_LEXICON[inferredSignId];
+    steps.push({
+      key: `w_${wIdx}_WORD_${def.id}`,
+      signId: def.id,
+      sourceWord: rawWord,
+      glossAr: `${rawWord} (${def.glossAr})`,
+      glossEn: `${rawWord} (${def.glossEn})`,
+      descriptionAr: `حركة تعبيرية كاملة لكلمة "${rawWord}" بدون حروف`,
+      oscillation: def.oscillation,
+      pose: def.pose,
+      durationMs: 950,
+      isFingerspelled: false,
+    });
   }
 
   return steps;
@@ -903,13 +965,20 @@ export function translateSentenceToSignSteps(text: string): SignStep[] {
  */
 export function textToSignSequence(text: string): SignId[] {
   const steps = translateSentenceToSignSteps(text);
-  const ids: SignId[] = [];
+  const semanticIds: SignId[] = [];
+  const fallbackIds: SignId[] = [];
   for (const st of steps) {
-    if (isValidSignId(st.signId) && ids[ids.length - 1] !== st.signId) {
-      ids.push(st.signId);
+    if (!isValidSignId(st.signId)) continue;
+    if (st.key.includes('_WORD_')) {
+      if (fallbackIds[fallbackIds.length - 1] !== st.signId) {
+        fallbackIds.push(st.signId);
+      }
+    } else if (semanticIds[semanticIds.length - 1] !== st.signId) {
+      semanticIds.push(st.signId);
     }
   }
-  return ids.length > 0 ? ids : ['OPEN_HAND'];
+  if (semanticIds.length > 0) return semanticIds;
+  return fallbackIds.length > 0 ? fallbackIds : ['OPEN_HAND'];
 }
 
 export function lerpNum(a: number, b: number, t: number): number {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { PanelRight, Wifi, WifiOff } from 'lucide-react';
 
-export type ActiveNavSection = 'chat' | 'sign_camera' | 'robot' | 'firmware';
+export type ActiveNavSection = 'chat' | 'sign_camera' | 'robot';
 
 interface TopBarProps {
   activeSection: ActiveNavSection;
@@ -26,7 +26,6 @@ export const TopBar: React.FC<TopBarProps> = ({
     { id: 'chat', label: 'المحادثة' },
     { id: 'sign_camera', label: 'كاميرا الإشارة' },
     { id: 'robot', label: 'أوامر الروبوت' },
-    { id: 'firmware', label: 'كود ESP32' },
   ];
 
   const isConnected = mqttState === 'connected';
@@ -58,7 +57,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </a>
       </div>
 
-      {/* Zone 2: 4 concise single-line text navigation links */}
+      {/* Zone 2: 3 concise single-line text navigation links */}
       <nav aria-label="التنقل الرئيسي" className="hidden md:flex items-center gap-6">
         {navItems.map((item) => {
           const isActive = activeSection === item.id;

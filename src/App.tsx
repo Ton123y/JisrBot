@@ -9,7 +9,6 @@ import {
 } from './components/HumanRobotConsole';
 import { SignCameraStudio } from './components/SignCameraStudio';
 import { Esp32ConfigModal } from './components/Esp32ConfigModal';
-import { FirmwarePanel } from './components/FirmwarePanel';
 import {
   DEFAULT_MQTT_CONFIG,
   getCommandTopic,
@@ -27,7 +26,7 @@ import {
 import type { ChatAttachment } from './lib/attachments';
 
 const WELCOME_TEXT =
-  'أهلاً بك في JisrBot! أنا هنا للحديث معك في أي موضوع، وتنفيذ أوامرك مباشرة على الروبوت ESP32، والرد عليك بالصوت وترجمة كل ردودي بالكامل إلى لغة الإشارة.';
+  'أهلاً بيك في JisrBot! أنا معاك نتكلم في أي موضوع باللهجة المصرية، وأنفذلك أوامرك على الروبوت ESP32، وأرد عليك بالصوت وكمان أترجملك كل ردودي بلغة الإشارة.';
 
 const INITIAL_SIGN_STEPS = translateSentenceToSignSteps(WELCOME_TEXT);
 const STORAGE_KEY = 'jisrbot_conversations_v1';
@@ -97,7 +96,9 @@ export default function App() {
   const [signSteps, setSignSteps] = useState<SignStep[]>(INITIAL_SIGN_STEPS);
   const [sequenceTrigger, setSequenceTrigger] = useState(0);
   const [latestAiReplyText, setLatestAiReplyText] = useState<string>(WELCOME_TEXT);
+  const [lastSignUserMessage, setLastSignUserMessage] = useState<string>('');
   const [composedSignText, setComposedSignText] = useState('');
+  const [accumulatedSignSentences, setAccumulatedSignSentences] = useState<string[]>([]);
 
   // Multi-conversation threads state
   const [conversations, setConversations] = useState<ChatConversation[]>(loadInitialConversations);
@@ -359,6 +360,9 @@ export default function App() {
     );
 
     setIsSending(true);
+    if (opts?.isFromSign) {
+      setLastSignUserMessage(text);
+    }
 
     try {
       const resp = await fetch('/api/ai/chat', {
@@ -366,6 +370,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
+          isFromSign: Boolean(opts?.isFromSign),
           attachments: opts?.attachments?.map((a) => ({
             name: a.name,
             mimeType: a.mimeType,
@@ -515,7 +520,6 @@ export default function App() {
     { id: 'chat', label: 'المحادثة' },
     { id: 'sign_camera', label: 'كاميرا الإشارة' },
     { id: 'robot', label: 'أوامر الروبوت' },
-    { id: 'firmware', label: 'كود ESP32' },
   ];
 
   return (
@@ -556,8 +560,11 @@ export default function App() {
             signSteps={signSteps}
             sequenceTrigger={sequenceTrigger}
             latestAiReplyText={latestAiReplyText}
+            lastSignUserMessage={lastSignUserMessage}
             composedText={composedSignText}
             onComposedTextChange={setComposedSignText}
+            accumulatedSentences={accumulatedSignSentences}
+            onAccumulatedSentencesChange={setAccumulatedSignSentences}
             isSendingAi={isSending}
             robotState={robotState}
             ttsPlayingText={ttsPlayingText}
@@ -566,24 +573,12 @@ export default function App() {
             onReplayAiSignReply={() =>
               triggerSignStepsPlayback(translateSentenceToSignSteps(latestAiReplyText), latestAiReplyText)
             }
-            onSendSignMessage={(composedText) =>
-              handleSendMessage(composedText, { isFromSign: true })
+            onSendSignMessage={(fullText) =>
+              handleSendMessage(fullText, { isFromSign: true })
             }
             onPreviewSign={triggerSingleSignPreview}
             onSendSignToEsp32={handleSendSignFromLexicon}
             onManualRobotCommand={handleManualRobotCommand}
-          />
-        ) : activeNav === 'firmware' ? (
-          <FirmwarePanel
-            config={{
-              mode: mqttConfig.mode,
-              brokerHost: mqttConfig.brokerHost,
-              port: mqttConfig.port,
-              useTls: mqttConfig.useTls,
-              topicPrefix: mqttConfig.topicPrefix,
-              username: mqttConfig.username,
-            }}
-            onOpenConfig={() => setConfigModalOpen(true)}
           />
         ) : (
           <HumanRobotConsole

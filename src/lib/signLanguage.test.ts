@@ -45,6 +45,28 @@ test('translateSentenceToSignSteps translates every single word in an AI reply w
   assert.equal(steps.some((s) => s.signId === 'RAISE_HAND'), true);
 });
 
+test('translateSentenceToSignSteps uses full gestures and zero letters for normal Arabic and English sentences', () => {
+  const arSteps = translateSentenceToSignSteps('أهلاً بيك يا صديقي إشارتك واضحة جداً وهرد عليك دلوقتي');
+  assert.ok(arSteps.length >= 6);
+  assert.equal(arSteps.every((s) => !s.isFingerspelled && !s.signId.startsWith('LETTER_')), true);
+
+  const enSteps = translateSentenceToSignSteps('hello my wonderful friend how are you today');
+  assert.ok(enSteps.length >= 6);
+  assert.equal(enSteps.every((s) => !s.isFingerspelled && !s.signId.startsWith('LETTER_')), true);
+});
+
+test('translateSentenceToSignSteps only uses fingerspelling letters when saying its own name (JisrBot / جسر)', () => {
+  const steps = translateSentenceToSignSteps('أهلاً بيك أنا JisrBot أو جسر جاهز أساعدك');
+  const letterSteps = steps.filter((s) => s.isFingerspelled || s.signId.startsWith('LETTER_'));
+  const nonNameLetters = letterSteps.filter(
+    (s) => s.sourceWord !== 'JisrBot' && s.sourceWord !== 'جسر'
+  );
+  assert.equal(nonNameLetters.length, 0);
+  assert.ok(letterSteps.some((s) => s.sourceWord === 'JisrBot'));
+  assert.ok(letterSteps.some((s) => s.sourceWord === 'جسر'));
+  assert.ok(steps.some((s) => s.sourceWord === 'أساعدك' && !s.isFingerspelled));
+});
+
 test('interpolateHandPose clamps alpha and interpolates finger joints linearly', () => {
   const from = SIGN_LEXICON.OPEN_HAND.pose;
   const to = SIGN_LEXICON.FIST.pose;
@@ -53,3 +75,4 @@ test('interpolateHandPose clamps alpha and interpolates finger joints linearly',
   const clamped = interpolateHandPose(from, to, 2.0);
   assert.equal(clamped.index[0], to.index[0]);
 });
+

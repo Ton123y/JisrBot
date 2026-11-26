@@ -24,6 +24,7 @@ import {
   translateSentenceToSignSteps,
   type SignId,
 } from './src/lib/signLanguage.ts';
+import { EGYPTIAN_SIGN_DATASET_PROMPT } from './src/lib/egyptianSignDataset.ts';
 import { prepareMarkdownForSignTranslation } from './src/lib/attachments.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -278,12 +279,14 @@ async function withGeminiRetryMeta<T>(
 
 const VALID_SIGN_IDS = SIGN_LIST.map((s) => s.id).join(', ');
 
-const SYSTEM_INSTRUCTION = `أنت "JisrBot" (جسر بوت)، مساعد ذكاء اصطناعي متكامل يجمع قدرات المحادثة والتحليل العميق على غرار Gemini وClaude، ويرتبط مباشرة بالروبوت المادي (ESP32) عبر الإنترنت.
-مهامك الأساسية:
-1. الإجابة على أي سؤال في شتى المجالات (البرمجة، العلوم، الرياضيات، الكتابة، الشرح، الترجمة، التلخيص، التحليل المنطقي) بإجابات وافية ومنظمة واحترافية بصيغة Markdown (عناوين واضحة، نقاط، أمثلة، ومقاطع كود عند الحاجة) بنفس لغة المستخدم.
-2. تحليل الملفات والمستندات والصور المرفقة أو الملتقطة بالكاميرا بدقة: اقرأ محتوى ملفات PDF أو الأكواد أو الجداول النصية أو الصور بتمعّن وأجب عن أسئلة المستخدم استناداً إلى تفاصيلها الحقيقية.
-3. عندما يطلب المستخدم تحريك الروبوت أو تنفيذ أمر مادي (مثل: تشغيل/إطفاء المصباح LED، رفع أو تحريك الذراع، تشغيل الموتور، التلويح باليد، تنفيذ إشارة معينة، أو إعادة الضبط)، استدعِ أداة "control_robot_hardware" فوراً بالقيم المناسبة، ثم أكد التنفيذ بوضوح. أما الأسئلة العامة والمحادثة وتحليل الملفات والصور فلا تستدعِ فيها أدوات الروبوت.
-حالة الروبوت الحالية: LED={{LED}}, ArmAngle={{ARM}}°.`;
+const SYSTEM_INSTRUCTION = `أنت "JisrBot" (جسر بوت)، مساعد ذكاء اصطناعي ذكي وودود بيتكلم **باللهجة المصرية الطبيعية والواضحة** زي أي شخص مصري مثقف ولبق، وبتجمع قدرات الفهم والتحليل العميق على غرار Gemini وClaude، ومتصل مباشرة بروبوت حقيقي (ESP32) عبر الإنترنت.
+
+أسلوب كلامك وقواعدك الأساسية:
+1. **اللهجة المصرية**: رد دايماً باللهجة المصرية السهلة والواضحة (زي: "أهلاً بيك!", "تمام جداً"، "بص يا سيدي"، "حاضر هعملك ده حالاً") سواء في الدردشة العادية أو لما ترد على كلام جاي من لغة الإشارة أو لما تأكد تنفيذ أوامر الروبوت. لو المستخدم سأل سؤال بالإنجليزي أو طلب الفصحى صراحةً، جاوبه باللغة اللي طلبها، لكن الأساس في العربي هو **اللهجة المصرية**.
+2. **الأسئلة العامة والتقنية**: جاوب على أي سؤال في البرمجة، العلوم، الرياضيات، الكتابة، الشرح، الترجمة، أو التلخيص بإجابات دقيقة ومنظمة بصيغة Markdown (عناوين واضحة، نقاط، أمثلة، ومقاطع كود عند الحاجة) مع شرح مصري سلس وبسيط.
+3. **تحليل الملفات والصور**: اقرا محتوى ملفات PDF أو الأكواد أو الجداول النصية أو الصور المرفقة أو المصوّرة بالكاميرا بدقة، وجاوب عن تفاصيلها الحقيقية باللهجة المصرية.
+4. **التحكم في الروبوت ESP32**: لو المستخدم طلب تحريك الروبوت أو تنفيذ أمر مادي (تشغيل/إطفاء النور LED، رفع أو تحريك الذراع، تشغيل الموتور، التلويح أو عمل إشارة باليد، أو إعادة الضبط لوضع الراحة)، استدعِ أداة "control_robot_hardware" فوراً بالقيم المناسبة، وبعدين أكّدله التنفيذ باللهجة المصرية. الأسئلة العامة وتحليل الملفات والصور متستدعيش فيها أدوات الروبوت.
+حالة الروبوت دلوقتي: LED={{LED}}, ArmAngle={{ARM}}°.`;
 
 const controlRobotTool: FunctionDeclaration = {
   name: 'control_robot_hardware',
@@ -432,12 +435,19 @@ async function startServer() {
       }
 
       if (!rawMessage && userParts.length === 0) {
-        res.status(400).json({ error: 'يرجى كتابة رسالة، إرسال صوت، أو إرفاق ملف/صورة.' });
+        res.status(400).json({ error: 'من فضلك اكتب رسالة، أو ابعت صوت، أو أرفق ملف أو صورة.' });
         return;
       }
 
-      const effectivePrompt = rawMessage || 'حلل المرفقات التالية واشرح محتواها بوضوح وبالتفصيل.';
-      userParts.push({ text: effectivePrompt });
+      const isFromSign = Boolean(req.body?.isFromSign);
+      const effectivePrompt = rawMessage || 'حلل المرفقات دي واشرح محتواها بوضوح وبالتفصيل.';
+      if (isFromSign) {
+        userParts.push({
+          text: `[رسالة مجمّعة من المستخدم بلغة الإشارة — افهم المعنى الكامل لكل الجمل المتجمعة ورد عليه باللهجة المصرية الودودة والواضحة]:\n${effectivePrompt}`,
+        });
+      } else {
+        userParts.push({ text: effectivePrompt });
+      }
 
       const rawHistory = Array.isArray(req.body?.history) ? req.body.history.slice(-10) : [];
       const contents: Array<{ role: 'user' | 'model'; parts: Array<Record<string, unknown>> }> = [];
@@ -579,11 +589,11 @@ async function startServer() {
       if (!replyText) {
         if (executedCommands.length > 0) {
           const summaries = executedCommands.map((e) => e.command.note || e.command.action).join('، ');
-          replyText = `تم تنفيذ أوامر الروبوت بنجاح (${summaries}) وإرسالها عبر قناة ESP32.`;
+          replyText = `تمام! نفّذتلك أوامر الروبوت (${summaries}) وبعتها لـ ESP32.`;
         } else if (chatLoopError) {
           throw chatLoopError;
         } else {
-          replyText = 'أهلاً بك! أنا جاهز للحديث معك أو تنفيذ أوامر الروبوت.';
+          replyText = 'أهلاً بيك! أنا جاهز نتكلم في أي حاجة أو أنفذلك أوامر الروبوت.';
         }
       }
 
@@ -635,7 +645,7 @@ async function startServer() {
                     {
                       text: safeText,
                       speechMetadata: {
-                        style: 'Clear, warm, helpful robotics assistant speaking naturally',
+                        style: 'Warm, friendly Egyptian Arabic assistant speaking naturally and clearly',
                       },
                     },
                   ],
@@ -764,25 +774,44 @@ async function startServer() {
     try {
       const imageBase64 = typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
       const mimeType = typeof req.body?.mimeType === 'string' ? req.body.mimeType : 'image/jpeg';
-      const mode =
-        req.body?.mode === 'letters' || req.body?.mode === 'gestures' ? req.body.mode : 'auto';
+      const mode = req.body?.mode === 'letters' ? 'letters' : 'gestures';
+      const spatialContext =
+        req.body?.spatialContext && typeof req.body.spatialContext === 'object'
+          ? (req.body.spatialContext as {
+              bodyDetected?: boolean;
+              handsCount?: number;
+              leftHandZone?: string;
+              rightHandZone?: string;
+              handsRelation?: string;
+              locationSummaryAr?: string;
+            })
+          : null;
       if (!imageBase64) {
         res.status(400).json({ error: 'الصورة مطلوبة لتحليل لغة الإشارة.' });
         return;
       }
 
+      const spatialHintText = spatialContext
+        ? `LIVE BODY & TWO-HAND SPATIAL TELEMETRY (from MediaPipe Pose 33-point + Dual HandLandmarker):
+- Body skeleton detected: ${Boolean(spatialContext.bodyDetected)}
+- Visible hands count: ${spatialContext.handsCount ?? 'unknown'}
+- Right hand body zone: ${spatialContext.rightHandZone || 'unknown'}
+- Left hand body zone: ${spatialContext.leftHandZone || 'unknown'}
+- Hands relation: ${spatialContext.handsRelation || 'unknown'}
+- Summary: ${spatialContext.locationSummaryAr || ''}`
+        : `Inspect the full upper body (head, face, eyes, mouth, shoulders, chest, torso) AND BOTH hands (left + right) and their spatial locations relative to the body.`;
+
       const modeFocusInstruction =
         mode === 'letters'
-          ? `PRIORITY MODE = LETTERS (حروف أبجدية الإشارة):
-Focus on recognizing Arabic Sign Language fingerspelling letters (أ، ب، ت، ث، ج، ح، خ، د، ذ، ر، ز، س، ش، ص، ض، ط، ظ، ع، غ، ف، ق، ك، ل، م، ن، هـ، و، ي) OR ASL alphabet letters (A-Z) if clearly an English letter pose.
+          ? `PRIORITY MODE = NAME FINGERSPELLING LETTERS ONLY (تهجئة الاسم بالحروف):
+Focus on recognizing Arabic Sign Language fingerspelling letters (أ، ب، ت، ث، ج، ح، خ، د، ذ، ر، ز، س، ش، ص، ض، ط، ظ، ع، غ، ف، ق، ك، ل، م، ن، هـ، و، ي) OR ASL alphabet letters (A-Z) for spelling a name.
 Set isLetter=true and set recognizedWordAr to ONLY that single letter (e.g. "أ", "ب", "ت", "س", "م", "A"). Also pick the closest SignId from ${VALID_SIGN_IDS} for 3D preview.`
-          : mode === 'gestures'
-          ? `PRIORITY MODE = GESTURES / WORDS (حركات وكلمات):
-Focus on recognizing full hand gestures and words from: ${VALID_SIGN_IDS}.
-Set isLetter=false and set recognizedWordAr to a clean 1-2 word Arabic label (e.g. "مرحباً", "نعم", "لا", "شكراً", "ممتاز", "توقف", "أحبك", "سلام", "مساعدة", "تشغيل", "واحد", "اثنان").`
-          : `PRIORITY MODE = AUTO (حركات وكلمات + حروف):
-Detect whether the user is showing a common sign gesture/word (e.g. مرحباً، سلام، ممتاز، توقف، أحبك، مساعدة، نعم، لا، شكراً، سؤال، أرقام ١-٥) OR fingerspelling a single Arabic/English sign letter (أ، ب، ت، ج، د، ر، س، ع، ف، ك، ل، م، ن، و، ي، أو A-Z).
-If fingerspelling a letter, set isLetter=true and recognizedWordAr to that single letter. Otherwise set isLetter=false and recognizedWordAr to a short 1-2 word Arabic word.`;
+          : `PRIORITY MODE = FULL GESTURES & COMPLETE EGYPTIAN/ARABIC SIGN WORDS ONLY (حركات وكلمات كاملة بدون حروف):
+NEVER return an isolated single letter (never return "أ", "ب", "ل", "ن", "م", "A", etc.).
+Prioritize matching against the 56-class Mendeley Egyptian Sign Language dataset (DOI: 10.17632/39tbt2jd7r.1) and core signs below, factoring in BOTH hands + body location:
+${EGYPTIAN_SIGN_DATASET_PROMPT}
+Core 3D SignIds: ${VALID_SIGN_IDS}.
+Set isLetter=false and set recognizedWordAr to the cleanest matching Egyptian Arabic word/phrase (e.g. "عامل إيه", "صباح الخير", "تمام", "بحب", "عايز", "مش عايز", "دلوقتي", "كتاب", "بيت", "مفيش", "خلي بالك", "تعبان", "حلو أوي", "مرحباً", "نعم", "لا", "شكراً", "توقف", "مساعدة"). If matched to one of the 56 dataset classes, also set datasetClass to its slug (or "" if general).`;
 
       const ai = getAiClient();
       const response = await withGeminiRetry(
@@ -798,24 +827,21 @@ If fingerspelling a letter, set isLetter=true and recognizedWordAr to that singl
                   },
                 },
                 {
-                  text: `You are an ultra-fast real-time Arabic & International Sign Language vision classifier.
-Inspect the camera frame:
-1. Check if a hand gesture or sign pose (real hand OR hand illustration) is clearly visible.
-   - If NO hand is visible (empty room, face only, motion blur unreadable), set handDetected=false, detectedSignId="NONE", confidence=0, isLetter=false, recognizedWordAr="", and briefly state why in Arabic.
-   - If a hand IS visible, set handDetected=true and confidence (integer 0-100, e.g. 92).
-2. Inspect each finger state quickly (thumb, index, middle, ring, pinky, palm orientation):
-   - All 5 open spread -> HELLO / STOP / OPEN_HAND / COUNT_5
-   - Index + Middle V -> PEACE / COUNT_2
-   - Thumb UP -> GOOD / HELP
-   - Thumb + Index + Pinky -> LOVE
-   - Index pointing -> POINT / COUNT_1 / GO
-   - Thumb + Index O circle -> OK
-   - Closed fist -> FIST / YES
-   - Thumb + Index + Middle pinch -> NO
-   - Thumb + Pinky -> CALL_ME
-   - Hooked index -> QUESTION
+                  text: `You are an expert Egyptian & Arabic Sign Language vision classifier grounded in full-body pose + dual-hand spatial context and the Mendeley Egyptian Sign Language dataset (10.17632/39tbt2jd7r.1).
+Inspect the frame carefully:
+1. Check BOTH hands (Left + Right) AND the upper body (head, face, mouth, shoulders, chest, torso):
+   - If NO hand is visible, set handDetected=false, detectedSignId="NONE", confidence=0, isLetter=false, recognizedWordAr="", datasetClass="", spatialSummaryAr="لم يتم رصد اليدين", and briefly explain in Arabic.
+   - If 1 or 2 hands ARE visible, set handDetected=true and confidence (0-100).
+2. ${spatialHintText}
+   Remember how body placement changes sign meaning in Egyptian Sign Language:
+   - Near forehead/eyes -> صباح الخير / خلي بالك / فاطن
+   - Near mouth/chin -> تمام / شكراً / حلو أوي / كداب / صادق
+   - At chest/heart -> بحب / عايز / تعبان / أخويا / صاحبي
+   - Two hands together at chest -> كتاب / بيت / عامل إيه
+   - Two hands apart at chest -> مفيش / فكك مني
+   - Neutral space -> مرحباً / توقف / نعم / لا / سؤال
 3. ${modeFocusInstruction}
-Keep explanationAr very short (1 concise Arabic sentence).`,
+Set spatialSummaryAr to a short Arabic note describing where the hand(s) & body are positioned.`,
                 },
               ],
             },
@@ -832,6 +858,8 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
                   detectedSignId: { type: Type.STRING },
                   confidence: { type: Type.NUMBER },
                   recognizedWordAr: { type: Type.STRING },
+                  datasetClass: { type: Type.STRING },
+                  spatialSummaryAr: { type: Type.STRING },
                   arabicMeaning: { type: Type.STRING },
                   englishMeaning: { type: Type.STRING },
                   explanationAr: { type: Type.STRING },
@@ -846,6 +874,8 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
                   'detectedSignId',
                   'confidence',
                   'recognizedWordAr',
+                  'datasetClass',
+                  'spatialSummaryAr',
                   'arabicMeaning',
                   'englishMeaning',
                   'explanationAr',
@@ -865,6 +895,8 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
         detectedSignId?: string;
         confidence?: number;
         recognizedWordAr?: string;
+        datasetClass?: string;
+        spatialSummaryAr?: string;
         arabicMeaning?: string;
         englishMeaning?: string;
         explanationAr?: string;
@@ -889,11 +921,13 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
           detectedSignId: null,
           confidence,
           recognizedWordAr: '',
+          datasetClass: '',
+          spatialSummaryAr: parsed.spatialSummaryAr || spatialContext?.locationSummaryAr || '',
           arabicMeaning: parsed.arabicMeaning || 'لم يتم رصد يد واضحة',
           englishMeaning: parsed.englishMeaning || 'No clear hand detected',
           explanationAr:
             parsed.explanationAr ||
-            'ضع يدك بوضوح أمام الكاميرا لالتقاط الحركات أو الحروف فوراً.',
+            'ضع يديك والجسم العلوي بوضوح أمام الكاميرا لالتقاط الحركات والموقع فوراً.',
           responseSigns: [] as SignId[],
         });
         return;
@@ -903,8 +937,14 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
       const detectedSignId: SignId = normalized[0];
       const responseSigns = normalizeSignSequence(parsed.suggestedResponseSigns);
       const fallbackWord = SIGN_LEXICON[detectedSignId].glossAr.split('/')[0].trim();
-      const recognizedWordAr = (parsed.recognizedWordAr || '').trim() || fallbackWord;
-      const isLetter = Boolean(parsed.isLetter) || recognizedWordAr.length === 1;
+      const rawWord = (parsed.recognizedWordAr || '').trim();
+      const recognizedWordAr =
+        mode === 'letters'
+          ? rawWord || fallbackWord
+          : rawWord && rawWord.length > 1
+          ? rawWord
+          : fallbackWord;
+      const isLetter = mode === 'letters' && (Boolean(parsed.isLetter) || recognizedWordAr.length === 1);
 
       res.json({
         handDetected: true,
@@ -912,6 +952,9 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
         detectedSignId,
         confidence,
         recognizedWordAr,
+        datasetClass: (parsed.datasetClass || '').trim(),
+        spatialSummaryAr:
+          (parsed.spatialSummaryAr || '').trim() || spatialContext?.locationSummaryAr || '',
         arabicMeaning: parsed.arabicMeaning || SIGN_LEXICON[detectedSignId].glossAr,
         englishMeaning: parsed.englishMeaning || SIGN_LEXICON[detectedSignId].glossEn,
         explanationAr: parsed.explanationAr || SIGN_LEXICON[detectedSignId].descriptionAr,
@@ -920,6 +963,81 @@ Keep explanationAr very short (1 concise Arabic sentence).`,
     } catch (err: unknown) {
       const rawMsg = err instanceof Error ? err.message : String(err);
       console.error('[RecognizeSign fatal error]', rawMsg);
+      res.status(500).json({ error: formatGeminiError(err) });
+    }
+  });
+
+  app.post('/api/ai/compose-sign-sentence', async (req, res) => {
+    try {
+      const rawTokens = Array.isArray(req.body?.rawTokens)
+        ? req.body.rawTokens.map((t: unknown) => String(t || '').trim()).filter(Boolean).slice(0, 30)
+        : [];
+      const rawDraft = typeof req.body?.rawDraft === 'string' ? req.body.rawDraft.trim() : '';
+      const accumulatedContext =
+        typeof req.body?.accumulatedContext === 'string' ? req.body.accumulatedContext.trim() : '';
+
+      const combinedRaw = rawDraft || rawTokens.join(' ');
+      if (!combinedRaw) {
+        res.status(400).json({ error: 'مفيش إشارات أو كلمات حالياً لتكوين جملة.' });
+        return;
+      }
+
+      const ai = getAiClient();
+      const response = await withGeminiRetry(
+        (modelName) =>
+          ai.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: `أنت خبير في ترجمة لغة الإشارة المصرية والعربية وصياغتها باللهجة المصرية الطبيعية.
+المستخدم عمل مجموعة إشارات كاملة باليدين والجسم عبر الكاميرا (استناداً لقاموس داتا سيت لغة الإشارة المصرية):
+الإشارات الحالية: "${combinedRaw}"
+${accumulatedContext ? `الجمل اللي المستخدم جمّعها قبل كده في نفس الرسالة (كمّل عليها بدون ما تكررها): "${accumulatedContext}"` : ''}
+
+مرجع إشارات الداتا سيت المصرية لتفادي أي خطأ في فهم الكلمات:
+${EGYPTIAN_SIGN_DATASET_PROMPT}
+
+المطلوب:
+كوّن جملة واحدة واضحة ومفهومة وطبيعية **باللهجة المصرية** تعبّر عن الإشارات الحالية فقط (من غير حشو أو تكرار للكلام اللي قبله).
+أعد النتيجة JSON بالصيغة:
+- sentenceAr: الجملة المصاغة باللهجة المصرية (تنتهي بنقطة أو علامة استفهام).
+- intentAr: ملخص قصير جداً من كلمتين إلى 4 كلمات لقصد المستخدم.`,
+                  },
+                ],
+              },
+            ],
+            config: {
+              ...(modelName === 'gemini-4-hydrogen'
+                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                : {}),
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  sentenceAr: { type: Type.STRING },
+                  intentAr: { type: Type.STRING },
+                },
+                required: ['sentenceAr', 'intentAr'],
+              },
+            },
+          }),
+        'gemini-4-hydrogen',
+        'gemini-3.1-flash-lite'
+      );
+
+      const parsed = JSON.parse((response.text ?? '{}').trim()) as {
+        sentenceAr?: string;
+        intentAr?: string;
+      };
+      const sentenceAr = (parsed.sentenceAr || combinedRaw).trim();
+      const intentAr = (parsed.intentAr || 'جملة بلغة الإشارة').trim();
+      res.json({ sentenceAr, intentAr });
+    } catch (err: unknown) {
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      console.error('[ComposeSignSentence error]', rawMsg);
       res.status(500).json({ error: formatGeminiError(err) });
     }
   });

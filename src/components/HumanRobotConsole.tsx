@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Camera,
   Check,
+  ChevronDown,
+  ChevronUp,
   Copy,
   Cpu,
   FileCode2,
@@ -13,6 +15,7 @@ import {
   Mic,
   MicOff,
   Paperclip,
+  Play,
   Plus,
   RotateCcw,
   Send,
@@ -21,9 +24,16 @@ import {
   Volume2,
   VolumeX,
   X,
+  Zap,
 } from 'lucide-react';
 import type { SignId, SignStep } from '../lib/signLanguage';
 import type { RobotCommandPayload, RobotState } from '../lib/esp32Codegen';
+import {
+  ROBOT_HARDWARE_PRESETS,
+  ROBOT_ROUTINE_PRESETS,
+  SUGGESTED_ROBOT_CHAT_PROMPTS,
+  type RobotRoutinePreset,
+} from '../lib/robotPresets';
 import {
   classifyFileAttachment,
   formatFileSize,
@@ -120,24 +130,24 @@ const STARTER_CARDS: Array<{
   prompt: string;
 }> = [
   {
+    title: 'تحكم سريع بالروبوت',
+    subtitle: 'شغّل النور وارفع إيد الروبوت 135° ولوّح بالسلام',
+    prompt: 'شغّل نور الروبوت وارفع إيده للزاوية 135 درجة ولوّح بإشارة السلام.',
+  },
+  {
+    title: 'دردشة باللهجة المصرية',
+    subtitle: 'اتكلم معايا في أي موضوع وأشرحلك ببساطة وبالمصري',
+    prompt: 'أهلاً يا JisrBot! اشرحلي ببساطة إزاي الذكاء الاصطناعي بيتعرف على لغة الإشارة؟',
+  },
+  {
     title: 'برمجة وشرح تقني',
     subtitle: 'اكتب دالة Python لتحليل ملف CSV وشرحها خطوة بخطوة',
-    prompt: 'اكتب دالة Python احترافية لقراءة ملف CSV وحساب الإحصائيات الأساسية مع شرح الكود خطوة بخطوة.',
+    prompt: 'اكتب دالة Python احترافية لقراءة ملف CSV وحساب الإحصائيات الأساسية واشرحها بالمصري.',
   },
   {
-    title: 'معرفة عامة وعلوم',
-    subtitle: 'اشرح كيف تعمل الشبكات العصبية والمحولات بأسلوب مبسط',
-    prompt: 'اشرح لي كيف تعمل نماذج اللغة الكبيرة (LLMs) بأسلوب مبسط وواضح مع مثال عملي.',
-  },
-  {
-    title: 'تحكم بالروبوت ESP32',
-    subtitle: 'ارفع يد الروبوت وأضئ المصباح ولوّح للسلام',
-    prompt: 'ارفع يد الروبوت للزاوية 120 درجة وأضئ المصباح ولوّح للسلام.',
-  },
-  {
-    title: 'هندسة وربط العتاد',
-    subtitle: 'خطوات توصيل ESP32 بمحرك سيرفو ومضخم صوت بأمان',
-    prompt: 'ما هي أفضل الممارسات الكهربائية لتوصيل ESP32 بمحرك سيرفو وحمايته من هبوط الجهد؟',
+    title: 'تشغيل أوامر مركبة',
+    subtitle: 'اعمل إشارة ممتاز وشغّل الموتور 60% للعرض التوضيحي',
+    prompt: 'خلي الروبوت يعمل إشارة ممتاز (GOOD) وشغّل الموتور بسرعة 60 في المية.',
   },
 ];
 
@@ -299,6 +309,8 @@ export const HumanRobotConsole: React.FC<HumanRobotConsoleProps> = ({
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [showRobotQuickPrompts, setShowRobotQuickPrompts] = useState(true);
+  const [runningRoutineId, setRunningRoutineId] = useState<string | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -696,10 +708,10 @@ export const HumanRobotConsole: React.FC<HumanRobotConsoleProps> = ({
                   <Sparkles className="w-5 h-5 text-amber-400" aria-hidden="true" />
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-stone-100 tracking-tight">
-                  مرحباً، كيف أساعدك اليوم؟
+                  أهلاً بيك، تحب نعمل إيه النهارده؟
                 </h1>
                 <p className="text-sm text-stone-400 mt-2.5 max-w-xl leading-relaxed">
-                  اسألني في أي موضوع مثل Gemini أو Claude — برمجة، علوم، تلخيص ملفات PDF، تحليل الصور، أو وجّه أوامر مباشرة للروبوت ESP32.
+                  اتكلم معايا بالمصري في أي موضوع زي Gemini أو Claude — برمجة، تحليل ملفات PDF وصور، أو اختار أمر من أوامر الروبوت الجاهزة بالأسفل.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-8 text-right">
@@ -874,7 +886,49 @@ export const HumanRobotConsole: React.FC<HumanRobotConsoleProps> = ({
           </div>
 
           {/* Floating Claude/ChatGPT/Gemini Rounded Pill Composer */}
-          <div className="w-full max-w-3xl mx-auto px-3 sm:px-6 pb-4 pt-2 shrink-0">
+          <div className="w-full max-w-3xl mx-auto px-3 sm:px-6 pb-4 pt-1 shrink-0">
+            {/* Quick Suggested Robot Commands Bar */}
+            <div
+              data-testid="suggested-robot-commands"
+              className="mb-2.5 rounded-2xl bg-[#191B1F] border border-white/8 px-3 py-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRobotQuickPrompts((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-400 hover:text-amber-300"
+                >
+                  <Zap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>أوامر مقترحة للروبوت ({SUGGESTED_ROBOT_CHAT_PROMPTS.length})</span>
+                  {showRobotQuickPrompts ? (
+                    <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+                  ) : (
+                    <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
+                </button>
+                <span className="text-[11px] text-stone-500 hidden sm:inline">
+                  اضغط على أي أمر عشان يتنفّذ فوراً في الشات
+                </span>
+              </div>
+
+              {showRobotQuickPrompts && (
+                <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1">
+                  {SUGGESTED_ROBOT_CHAT_PROMPTS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={isSending}
+                      onClick={() => onSendMessage(item.prompt)}
+                      title={item.prompt}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-[#22252B] hover:bg-amber-500 hover:text-stone-950 text-stone-200 border border-white/10 disabled:opacity-40 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {(voiceError || ttsError || attachmentError) && (
               <div className="mb-2 px-3.5 py-2 text-xs bg-rose-500/10 border border-rose-500/30 text-rose-200 rounded-xl flex items-center justify-between gap-2">
                 <span>{attachmentError || voiceError || ttsError}</span>
@@ -1254,8 +1308,75 @@ export const HumanRobotConsole: React.FC<HumanRobotConsoleProps> = ({
             className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[#22252B] text-stone-200 hover:bg-[#2B2F37] transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>إعادة ضبط الروبوت (Reset)</span>
+            <span>رجّع الروبوت لوضع الراحة (Reset)</span>
           </button>
+        </div>
+
+        {/* Rich Suggested Robot Commands & Routines Grid */}
+        <div
+          data-testid="robot-presets-section"
+          className="pt-4 border-t border-white/8 space-y-5"
+        >
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-bold text-amber-400">
+                أوامر مركبة جاهزة للروبوت (ضغطة واحدة)
+              </h3>
+              <span className="text-[11px] text-stone-500">تنفّذ خطوات متتالية</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {ROBOT_ROUTINE_PRESETS.map((routine: RobotRoutinePreset) => {
+                const isRunning = runningRoutineId === routine.id;
+                return (
+                  <button
+                    key={routine.id}
+                    type="button"
+                    disabled={Boolean(runningRoutineId)}
+                    onClick={async () => {
+                      setRunningRoutineId(routine.id);
+                      for (const step of routine.steps) {
+                        await dispatchRobotWithFeedback(step);
+                      }
+                      setRunningRoutineId(null);
+                    }}
+                    className="p-3 rounded-xl bg-[#131416] hover:bg-[#22252B] border border-white/10 text-right transition-colors flex items-start justify-between gap-3 disabled:opacity-60"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <span className="text-xs font-bold text-stone-100 block">{routine.label}</span>
+                      <span className="text-[11px] text-stone-400 block">{routine.description}</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 text-[11px] font-bold shrink-0">
+                      <Play className="w-3 h-3" aria-hidden="true" />
+                      <span>{isRunning ? 'شغال...' : 'تشغيل'}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {(
+            ['إضاءة وطوارئ', 'زوايا الذراع', 'سرعة الموتور', 'إشارات اليد'] as const
+          ).map((cat) => {
+            const items = ROBOT_HARDWARE_PRESETS.filter((p) => p.category === cat);
+            return (
+              <div key={cat} className="space-y-2">
+                <h4 className="text-xs font-bold text-stone-300">{cat}</h4>
+                <div className="flex flex-wrap gap-2">
+                  {items.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => dispatchRobotWithFeedback(preset.payload)}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#22252B] hover:bg-amber-500 hover:text-stone-950 text-stone-200 border border-white/10 transition-colors whitespace-nowrap"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Live MQTT Command Dispatch Log */}

@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyHandLandmarks, type HandLandmarkPoint } from './handGestureClassifier.ts';
+import {
+  classifyBodyAndHands,
+  classifyHandLandmarks,
+  computeBodySpatialContext,
+  getCanonicalPoseLandmarks,
+  getSampleBodyAndHandsForDatasetSign,
+  getSampleLandmarksForSign,
+  type HandLandmarkPoint,
+} from './handGestureClassifier.ts';
 
 function makeBaseHand(): HandLandmarkPoint[] {
   // Normalized [0..1] upright right hand centered at (0.5, 0.75)
@@ -59,10 +67,11 @@ test('classifyHandLandmarks detects HELLO when all 5 fingers are spread open', (
   extendFinger(lm, 13, 14, 15, 16, 0.04);
   extendFinger(lm, 17, 18, 19, 20, 0.09);
 
-  const res = classifyHandLandmarks(lm, 'auto');
+  const res = classifyHandLandmarks(lm, 'gestures');
   assert.ok(res);
   assert.equal(res.detectedSignId, 'HELLO');
   assert.equal(res.recognizedWordAr, 'مرحباً');
+  assert.equal(res.isLetter, false);
 });
 
 test('classifyHandLandmarks detects PEACE when index and middle are extended', () => {
@@ -102,14 +111,93 @@ test('classifyHandLandmarks detects Arabic fingerspelling letters in letters mod
   assert.equal(oRes.recognizedWordAr, 'م');
 });
 
+test('classifyHandLandmarks never returns single letters in gestures or auto modes across all sample poses', () => {
+  const sampleSigns = ['HELLO', 'PEACE', 'GOOD', 'NO', 'LOVE', 'QUESTION', 'CALL_ME', 'OK', 'STOP', 'YES'] as const;
+  for (const mode of ['gestures', 'auto'] as const) {
+    for (const signId of sampleSigns) {
+      const lm = getSampleLandmarksForSign(signId);
+      const res = classifyHandLandmarks(lm, mode);
+      assert.ok(res, `expected result for ${signId} in ${mode}`);
+      assert.equal(res.isLetter, false, `unexpected letter output for ${signId} in ${mode}`);
+      assert.ok(res.recognizedWordAr.length > 1, `expected full word for ${signId}, got "${res.recognizedWordAr}"`);
+    }
+
+    // L-shape and pinky-only must also produce full words, never 'ل' or 'ن'
+    const lShape = makeBaseHand();
+    extendThumbOut(lShape);
+    extendFinger(lShape, 5, 6, 7, 8, 0);
+    const lRes = classifyHandLandmarks(lShape, mode);
+    assert.ok(lRes);
+    assert.equal(lRes.isLetter, false);
+    assert.equal(lRes.recognizedWordAr, 'واحد');
+
+    const pinkyOnly = makeBaseHand();
+    extendFinger(pinkyOnly, 17, 18, 19, 20, 0.04);
+    const pinkyRes = classifyHandLandmarks(pinkyOnly, mode);
+    assert.ok(pinkyRes);
+    assert.equal(pinkyRes.isLetter, false);
+    assert.equal(pinkyRes.recognizedWordAr, 'تواصل');
+  }
+});
+
 test('classifyHandLandmarks detects NO when thumb points downward', () => {
   const lm = makeBaseHand();
   lm[2] = { x: 0.36, y: 0.68 };
   lm[3] = { x: 0.32, y: 0.76 };
   lm[4] = { x: 0.28, y: 0.88 };
 
-  const res = classifyHandLandmarks(lm, 'auto');
+  const res = classifyHandLandmarks(lm, 'gestures');
   assert.ok(res);
   assert.equal(res.detectedSignId, 'NO');
   assert.equal(res.recognizedWordAr, 'لا');
+});
+
+test('computeBodySpatialContext locates both hands relative to head, mouth, and chest pose landmarks', () => {
+  const pose = getCanonicalPoseLandmarks();
+  const ktab = getSampleBodyAndHandsForDatasetSign('ktab');
+  const spatial = computeBodySpatialContext(ktab.hands, pose);
+  assert.equal(spatial.bodyDetected, true);
+  assert.equal(spatial.handsCount, 2);
+  assert.equal(spatial.leftHandZone, 'chest_heart');
+  assert.equal(spatial.rightHandZone, 'chest_heart');
+  assert.equal(spatial.handsRelation, 'together');
+  assert.ok(spatial.locationSummaryAr.includes('الجسم مرصود'));
+});
+
+test('classifyBodyAndHands distinguishes two-hand and body-anchored Egyptian Sign Language dataset classes', () => {
+  const sabhl = getSampleBodyAndHandsForDatasetSign('sabhl_elkheer');
+  const sabhlRes = classifyBodyAndHands(sabhl.hands, sabhl.pose, 'gestures');
+  assert.ok(sabhlRes);
+  assert.equal(sabhlRes.recognizedWordAr, 'صباح الخير');
+  assert.equal(sabhlRes.datasetClass, 'sabhl elkheer');
+
+  const tmam = getSampleBodyAndHandsForDatasetSign('tmam');
+  const tmamRes = classifyBodyAndHands(tmam.hands, tmam.pose, 'gestures');
+  assert.ok(tmamRes);
+  assert.equal(tmamRes.recognizedWordAr, 'تمام');
+  assert.equal(tmamRes.datasetClass, 'tmam');
+
+  const ktab = getSampleBodyAndHandsForDatasetSign('ktab');
+  const ktabRes = classifyBodyAndHands(ktab.hands, ktab.pose, 'gestures');
+  assert.ok(ktabRes);
+  assert.equal(ktabRes.recognizedWordAr, 'كتاب');
+  assert.equal(ktabRes.spatial?.handsCount, 2);
+
+  const manzel = getSampleBodyAndHandsForDatasetSign('manzel');
+  const manzelRes = classifyBodyAndHands(manzel.hands, manzel.pose, 'gestures');
+  assert.ok(manzelRes);
+  assert.equal(manzelRes.recognizedWordAr, 'بيت');
+  assert.equal(manzelRes.datasetClass, 'manzel');
+
+  const mafish = getSampleBodyAndHandsForDatasetSign('mafish');
+  const mafishRes = classifyBodyAndHands(mafish.hands, mafish.pose, 'gestures');
+  assert.ok(mafishRes);
+  assert.equal(mafishRes.recognizedWordAr, 'مفيش');
+  assert.equal(mafishRes.datasetClass, 'mafish');
+
+  const helw = getSampleBodyAndHandsForDatasetSign('helw_awy');
+  const helwRes = classifyBodyAndHands(helw.hands, helw.pose, 'gestures');
+  assert.ok(helwRes);
+  assert.equal(helwRes.recognizedWordAr, 'حلو أوي');
+  assert.equal(helwRes.datasetClass, 'helw awy');
 });

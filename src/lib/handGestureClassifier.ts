@@ -4,9 +4,51 @@ export interface HandLandmarkPoint {
   x: number;
   y: number;
   z?: number;
+  visibility?: number;
+}
+
+export type HandednessLabel = 'Left' | 'Right';
+
+export interface HandDetectionInput {
+  landmarks: HandLandmarkPoint[];
+  handedness: HandednessLabel;
+}
+
+export type BodyZone =
+  | 'none'
+  | 'above_head'
+  | 'head_face'
+  | 'mouth_chin'
+  | 'chest_heart'
+  | 'shoulder'
+  | 'torso_neutral';
+
+export type HandsRelation = 'none' | 'single' | 'together' | 'apart' | 'crossed' | 'symmetric';
+
+export interface BodySpatialSummary {
+  bodyDetected: boolean;
+  handsCount: 0 | 1 | 2;
+  leftHandZone: BodyZone;
+  rightHandZone: BodyZone;
+  leftHandPos: { x: number; y: number } | null;
+  rightHandPos: { x: number; y: number } | null;
+  handsDistance: number | null; // Normalized by shoulder width
+  handsRelation: HandsRelation;
+  headPos: { x: number; y: number } | null;
+  chestPos: { x: number; y: number } | null;
+  shoulderWidth: number;
+  locationSummaryAr: string;
 }
 
 export type SignRecognitionMode = 'auto' | 'letters' | 'gestures';
+export type CaptureSpeedMode = 'turbo' | 'balanced';
+
+export const CAPTURE_HOLD_MS: Record<CaptureSpeedMode, number> = {
+  turbo: 90,
+  balanced: 220,
+};
+
+export const NO_HAND_RESET_MS = 120;
 
 export interface LocalHandClassification {
   handDetected: boolean;
@@ -17,6 +59,8 @@ export interface LocalHandClassification {
   arabicMeaning: string;
   englishMeaning: string;
   explanationAr: string;
+  datasetClass?: string;
+  spatial?: BodySpatialSummary;
 }
 
 export const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
@@ -28,10 +72,186 @@ export const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [5, 9], [9, 13], [13, 17],            // Palm arch
 ];
 
-function dist2D(a: HandLandmarkPoint, b: HandLandmarkPoint): number {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.hypot(dx, dy);
+// Upper body pose landmark pairs (MediaPipe 33-landmark Pose model)
+export const POSE_UPPER_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
+  [11, 12], // Shoulders
+  [11, 13], [13, 15], // Left arm
+  [12, 14], [14, 16], // Right arm
+  [11, 23], [12, 24], // Torso sides
+  [23, 24], // Waist/hips
+  [9, 10],  // Mouth line
+  [2, 5],   // Eye line
+];
+
+const BODY_ZONE_AR: Record<BodyZone, string> = {
+  none: 'غير مرصودة',
+  above_head: 'فوق الرأس',
+  head_face: 'عند الوجه/الرأس',
+  mouth_chin: 'عند الفم/الذقن',
+  chest_heart: 'عند الصدر/القلب',
+  shoulder: 'عند الكتف',
+  torso_neutral: 'أمام الجسم',
+};
+
+const HANDS_RELATION_AR: Record<HandsRelation, string> = {
+  none: 'لا توجد يد',
+  single: 'يد واحدة',
+  together: 'اليدان متقاربتان',
+  apart: 'اليدان متباعدتان',
+  crossed: 'اليدان متقاطعتان',
+  symmetric: 'اليدان متوازيتان',
+};
+
+function dist2D(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function getHandCenter(lm: HandLandmarkPoint[]): { x: number; y: number } {
+  const wrist = lm[0];
+  const midMcp = lm[9];
+  return {
+    x: (wrist.x + midMcp.x) * 0.5,
+    y: (wrist.y + midMcp.y) * 0.5,
+  };
+}
+
+function classifyHandZoneWithPose(
+  handCenter: { x: number; y: number },
+  pose: HandLandmarkPoint[] | null | undefined
+): BodyZone {
+  if (!pose || pose.length < 25) {
+    // Approximate body zone cleanly when pose is not available yet
+    if (handCenter.y < 0.24) return 'above_head';
+    if (handCenter.y < 0.42) return 'head_face';
+    if (handCenter.y < 0.62) return 'chest_heart';
+    return 'torso_neutral';
+  }
+
+  const nose = pose[0];
+  const mouthL = pose[9] ?? nose;
+  const mouthR = pose[10] ?? nose;
+  const mouthCenter = {
+    x: (mouthL.x + mouthR.x) * 0.5,
+    y: (mouthL.y + mouthR.y) * 0.5,
+  };
+  const lShoulder = pose[11];
+  const rShoulder = pose[12];
+  const shoulderCenter = {
+    x: (lShoulder.x + rShoulder.x) * 0.5,
+    y: (lShoulder.y + rShoulder.y) * 0.5,
+  };
+  const shoulderWidth = Math.max(0.14, dist2D(lShoulder, rShoulder));
+  const lHip = pose[23];
+  const rHip = pose[24];
+  const chestCenter = {
+    x: shoulderCenter.x,
+    y: shoulderCenter.y + Math.max(0.08, ((lHip.y + rHip.y) * 0.5 - shoulderCenter.y) * 0.34),
+  };
+
+  if (handCenter.y < nose.y - shoulderWidth * 0.32) {
+    return 'above_head';
+  }
+  if (
+    dist2D(handCenter, mouthCenter) < shoulderWidth * 0.28 &&
+    handCenter.y >= mouthCenter.y - shoulderWidth * 0.12
+  ) {
+    return 'mouth_chin';
+  }
+  if (dist2D(handCenter, nose) < shoulderWidth * 0.68 || handCenter.y < shoulderCenter.y - shoulderWidth * 0.14) {
+    return 'head_face';
+  }
+  if (
+    dist2D(handCenter, lShoulder) < shoulderWidth * 0.34 ||
+    dist2D(handCenter, rShoulder) < shoulderWidth * 0.34
+  ) {
+    return 'shoulder';
+  }
+  if (dist2D(handCenter, chestCenter) < shoulderWidth * 0.55) {
+    return 'chest_heart';
+  }
+  return 'torso_neutral';
+}
+
+/**
+ * Computes full spatial coordinates & body-zone mapping for both hands + 33-point body pose.
+ */
+export function computeBodySpatialContext(
+  hands: HandDetectionInput[],
+  poseLandmarks?: HandLandmarkPoint[] | null
+): BodySpatialSummary {
+  const hasPose = Boolean(poseLandmarks && poseLandmarks.length >= 25);
+  const pose = hasPose ? poseLandmarks! : null;
+
+  const shoulderWidth = pose
+    ? Math.max(0.14, dist2D(pose[11], pose[12]))
+    : 0.32;
+  const headPos = pose ? { x: pose[0].x, y: pose[0].y } : null;
+  const chestPos = pose
+    ? {
+        x: (pose[11].x + pose[12].x) * 0.5,
+        y: (pose[11].y + pose[12].y) * 0.5 + 0.12,
+      }
+    : null;
+
+  let leftHand: HandDetectionInput | undefined;
+  let rightHand: HandDetectionInput | undefined;
+
+  for (const h of hands.slice(0, 2)) {
+    if (!h.landmarks || h.landmarks.length < 21) continue;
+    if (h.handedness === 'Left' && !leftHand) {
+      leftHand = h;
+    } else if (h.handedness === 'Right' && !rightHand) {
+      rightHand = h;
+    } else if (!leftHand) {
+      leftHand = h;
+    } else if (!rightHand) {
+      rightHand = h;
+    }
+  }
+
+  const leftPos = leftHand ? getHandCenter(leftHand.landmarks) : null;
+  const rightPos = rightHand ? getHandCenter(rightHand.landmarks) : null;
+  const leftZone: BodyZone = leftPos ? classifyHandZoneWithPose(leftPos, pose) : 'none';
+  const rightZone: BodyZone = rightPos ? classifyHandZoneWithPose(rightPos, pose) : 'none';
+
+  const handsCount: 0 | 1 | 2 = leftPos && rightPos ? 2 : leftPos || rightPos ? 1 : 0;
+
+  let handsDistance: number | null = null;
+  let handsRelation: HandsRelation = handsCount === 0 ? 'none' : 'single';
+
+  if (leftPos && rightPos) {
+    handsDistance = dist2D(leftPos, rightPos) / shoulderWidth;
+    if (handsDistance < 0.52) {
+      handsRelation = Math.abs(leftPos.x - rightPos.x) < 0.04 ? 'crossed' : 'together';
+    } else if (handsDistance > 1.05) {
+      handsRelation = 'apart';
+    } else if (Math.abs(leftPos.y - rightPos.y) < 0.09) {
+      handsRelation = 'symmetric';
+    } else {
+      handsRelation = 'together';
+    }
+  }
+
+  const parts: string[] = [];
+  parts.push(hasPose ? 'الجسم مرصود' : 'تتبع اليدين');
+  if (rightZone !== 'none') parts.push(`اليمنى: ${BODY_ZONE_AR[rightZone]}`);
+  if (leftZone !== 'none') parts.push(`اليسرى: ${BODY_ZONE_AR[leftZone]}`);
+  if (handsCount === 2) parts.push(HANDS_RELATION_AR[handsRelation]);
+
+  return {
+    bodyDetected: hasPose,
+    handsCount,
+    leftHandZone: leftZone,
+    rightHandZone: rightZone,
+    leftHandPos: leftPos,
+    rightHandPos: rightPos,
+    handsDistance,
+    handsRelation,
+    headPos,
+    chestPos,
+    shoulderWidth,
+    locationSummaryAr: parts.join(' • '),
+  };
 }
 
 export interface HandGeometricFeatures {
@@ -48,6 +268,7 @@ export interface HandGeometricFeatures {
   indexMiddleGap: number;
   spreadAvg: number;
   fingersTogether: boolean;
+  pointingDown: boolean;
 }
 
 export function extractHandFeatures(lm: HandLandmarkPoint[]): HandGeometricFeatures | null {
@@ -61,7 +282,7 @@ export function extractHandFeatures(lm: HandLandmarkPoint[]): HandGeometricFeatu
     const wristToPip = dist2D(wrist, lm[pipIdx]);
     const mcpToTip = dist2D(lm[mcpIdx], lm[tipIdx]);
     const mcpToPip = dist2D(lm[mcpIdx], lm[pipIdx]);
-    return wristToTip > wristToPip * 1.12 && mcpToTip > mcpToPip * 1.15;
+    return wristToTip > wristToPip * 1.07 && mcpToTip > mcpToPip * 1.08;
   };
 
   const indexExtended = isFingerExtended(5, 6, 8);
@@ -69,19 +290,18 @@ export function extractHandFeatures(lm: HandLandmarkPoint[]): HandGeometricFeatu
   const ringExtended = isFingerExtended(13, 14, 16);
   const pinkyExtended = isFingerExtended(17, 18, 20);
 
-  // Hooked index: partially raised above MCP but tip bends closer to PIP than fully straight
   const indexWristTip = dist2D(wrist, lm[8]);
   const indexWristMcp = dist2D(wrist, lm[5]);
   const indexTipPip = dist2D(lm[6], lm[8]) / palmScale;
-  const indexHooked = !indexExtended && indexWristTip > indexWristMcp * 1.18 && indexTipPip < 0.45;
+  const indexHooked = !indexExtended && indexWristTip > indexWristMcp * 1.15 && indexTipPip < 0.45;
+  const pointingDown = indexExtended && lm[8].y > lm[5].y + 0.08 * palmScale;
 
-  // Thumb extension: distance from thumb tip to pinky MCP & index MCP
   const thumbTipToPinkyMcp = dist2D(lm[4], lm[17]) / palmScale;
   const thumbIpToPinkyMcp = dist2D(lm[3], lm[17]) / palmScale;
   const thumbToIndexMcp = dist2D(lm[4], lm[5]) / palmScale;
   const thumbExtended =
-    (thumbTipToPinkyMcp > thumbIpToPinkyMcp * 1.08 && thumbToIndexMcp > 0.48) ||
-    thumbToIndexMcp > 0.65;
+    (thumbTipToPinkyMcp > thumbIpToPinkyMcp * 1.06 && thumbToIndexMcp > 0.45) ||
+    thumbToIndexMcp > 0.62;
 
   const thumbUp =
     thumbExtended &&
@@ -114,12 +334,16 @@ export function extractHandFeatures(lm: HandLandmarkPoint[]): HandGeometricFeatu
     indexMiddleGap,
     spreadAvg,
     fingersTogether,
+    pointingDown,
   };
 }
 
+/**
+ * Classifies single-hand shape without body context (also used as building block for dual-hand + body fusion).
+ */
 export function classifyHandLandmarks(
   lm: HandLandmarkPoint[],
-  mode: SignRecognitionMode = 'auto'
+  mode: SignRecognitionMode = 'gestures'
 ): LocalHandClassification | null {
   const f = extractHandFeatures(lm);
   if (!f) return null;
@@ -138,9 +362,8 @@ export function classifyHandLandmarks(
     fingersTogether,
   } = f;
 
-  // 1. LETTERS MODE (أبجدية الإشارة السريعة)
+  // 1. LETTERS MODE (تهجئة الاسم بالحروف فقط)
   if (mode === 'letters') {
-    // O / ف : Thumb & Index form circle, others up
     if (pinchThumbIndex < 0.36 && middleExtended && ringExtended && pinkyExtended) {
       return {
         handDetected: true,
@@ -153,7 +376,6 @@ export function classifyHandLandmarks(
         explanationAr: 'ملامسة الإبهام والسبابة مع رفع باقي الأصابع (حرف ف).',
       };
     }
-    // م / O-closed : Thumb & Index form outward O-ring while other fingers are curled
     const indexTipDist = dist2D(lm[0], lm[8]);
     const indexMcpDist = dist2D(lm[0], lm[5]);
     if (
@@ -174,7 +396,6 @@ export function classifyHandLandmarks(
         explanationAr: 'حلقة مغلقة بين الإبهام والسبابة مع ثني باقي الأصابع (حرف م).',
       };
     }
-    // هـ : All 5 open
     if (thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
       return {
         handDetected: true,
@@ -187,7 +408,6 @@ export function classifyHandLandmarks(
         explanationAr: 'فتح جميع الأصابع الخمسة (حرف هـ).',
       };
     }
-    // ب : 4 fingers straight & together, thumb tucked
     if (!thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
       return {
         handDetected: true,
@@ -200,7 +420,6 @@ export function classifyHandLandmarks(
         explanationAr: 'رفع الأصابع الأربعة مع ضم الإبهام (حرف ب).',
       };
     }
-    // س : Index + Middle + Ring extended
     if (indexExtended && middleExtended && ringExtended && !pinkyExtended) {
       return {
         handDetected: true,
@@ -213,7 +432,6 @@ export function classifyHandLandmarks(
         explanationAr: 'رفع السبابة والوسطى والبنصر (حرف س).',
       };
     }
-    // ي / ت (2 fingers)
     if (!thumbExtended && indexExtended && middleExtended && !ringExtended && !pinkyExtended) {
       const spreadV = indexMiddleGap >= 0.32;
       return {
@@ -229,7 +447,6 @@ export function classifyHandLandmarks(
           : 'رفع السبابة والوسطى متلاصقتين (حرف ي).',
       };
     }
-    // ل : L-shape (Thumb + Index extended)
     if (thumbExtended && indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
       return {
         handDetected: true,
@@ -242,7 +459,6 @@ export function classifyHandLandmarks(
         explanationAr: 'مد الإبهام والسبابة على شكل زاوية قائمة (حرف ل).',
       };
     }
-    // د : Index only
     if (!thumbExtended && indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
       return {
         handDetected: true,
@@ -255,7 +471,6 @@ export function classifyHandLandmarks(
         explanationAr: 'رفع السبابة فقط للأعلى (حرف د).',
       };
     }
-    // ن : Pinky only
     if (!thumbExtended && !indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
       return {
         handDetected: true,
@@ -268,7 +483,6 @@ export function classifyHandLandmarks(
         explanationAr: 'رفع الخنصر فقط للأعلى (حرف ن).',
       };
     }
-    // و : Thumb + Pinky
     if (thumbExtended && !indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
       return {
         handDetected: true,
@@ -281,7 +495,6 @@ export function classifyHandLandmarks(
         explanationAr: 'مد الإبهام والخنصر مع ثني باقي الأصابع (حرف و).',
       };
     }
-    // ع : Thumb + Index + Pinky
     if (thumbExtended && indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
       return {
         handDetected: true,
@@ -294,7 +507,6 @@ export function classifyHandLandmarks(
         explanationAr: 'مد الإبهام والسبابة والخنصر (حرف ع).',
       };
     }
-    // ك : Thumb UP
     if (thumbUp && !indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
       return {
         handDetected: true,
@@ -307,7 +519,6 @@ export function classifyHandLandmarks(
         explanationAr: 'رفع الإبهام للأعلى مع قبض الأصابع (حرف ك).',
       };
     }
-    // ر : Hooked index
     if (indexHooked && !middleExtended && !ringExtended && !pinkyExtended) {
       return {
         handDetected: true,
@@ -320,7 +531,6 @@ export function classifyHandLandmarks(
         explanationAr: 'تقويس السبابة للأسفل (حرف ر).',
       };
     }
-    // أ : Closed fist
     if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
       return {
         handDetected: true,
@@ -335,8 +545,7 @@ export function classifyHandLandmarks(
     }
   }
 
-  // 2. AUTO & GESTURES MODES
-  // OK sign (Thumb + Index pinch + middle/ring/pinky up)
+  // 2. FULL GESTURES & COMPLETE WORDS ONLY (NO single letters)
   if (pinchThumbIndex < 0.36 && middleExtended && ringExtended && pinkyExtended) {
     return {
       handDetected: true,
@@ -350,7 +559,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // All 5 fingers extended -> HELLO (spread) or STOP (together)
   if (thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
     if (fingersTogether) {
       return {
@@ -376,7 +584,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // 4 fingers extended, thumb tucked -> COUNT_4 (or letter ب in auto mode if fingers together)
   if (!thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
     return {
       handDetected: true,
@@ -390,7 +597,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // LOVE (Thumb + Index + Pinky)
   if (thumbExtended && indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
     return {
       handDetected: true,
@@ -404,7 +610,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // CALL_ME (Thumb + Pinky)
   if (thumbExtended && !indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
     return {
       handDetected: true,
@@ -412,13 +617,12 @@ export function classifyHandLandmarks(
       detectedSignId: 'CALL_ME',
       confidence: 93,
       recognizedWordAr: 'اتصل',
-      arabicMeaning: 'اتصل بي',
+      arabicMeaning: 'اتصل بي / تواصل',
       englishMeaning: 'Call Me',
       explanationAr: 'مد الإبهام والخنصر لإشارة الاتصال.',
     };
   }
 
-  // COUNT_3 (Thumb + Index + Middle OR Index + Middle + Ring)
   if (indexExtended && middleExtended && ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -445,7 +649,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // PEACE / 2 (Index + Middle)
   if (!thumbExtended && indexExtended && middleExtended && !ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -459,35 +662,19 @@ export function classifyHandLandmarks(
     };
   }
 
-  // In 'auto' mode, distinguish L-shape (letter ل) and Pinky-only (letter ن)
-  if (mode === 'auto') {
-    if (thumbExtended && indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
-      return {
-        handDetected: true,
-        isLetter: true,
-        detectedSignId: 'POINT',
-        confidence: 91,
-        recognizedWordAr: 'ل',
-        arabicMeaning: 'حرف اللام (ل / L)',
-        englishMeaning: 'Letter Lam / L',
-        explanationAr: 'مد الإبهام والسبابة على شكل حرف ل.',
-      };
-    }
-    if (!thumbExtended && !indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
-      return {
-        handDetected: true,
-        isLetter: true,
-        detectedSignId: 'CALL_ME',
-        confidence: 89,
-        recognizedWordAr: 'ن',
-        arabicMeaning: 'حرف النون (ن / I)',
-        englishMeaning: 'Letter Noon / I',
-        explanationAr: 'رفع الخنصر فقط (حرف ن).',
-      };
-    }
+  if (!thumbExtended && !indexExtended && !middleExtended && !ringExtended && pinkyExtended) {
+    return {
+      handDetected: true,
+      isLetter: false,
+      detectedSignId: 'CALL_ME',
+      confidence: 89,
+      recognizedWordAr: 'تواصل',
+      arabicMeaning: 'تواصل / اتصال',
+      englishMeaning: 'Connect / Communicate',
+      explanationAr: 'رفع الخنصر للإشارة إلى التواصل أو الحديث.',
+    };
   }
 
-  // GOOD / Thumbs up
   if (thumbUp && !indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -501,7 +688,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // NO / Thumbs down
   if (thumbDown && !indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -515,7 +701,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // POINT / 1 (Index only)
   if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -525,11 +710,10 @@ export function classifyHandLandmarks(
       recognizedWordAr: 'واحد',
       arabicMeaning: 'واحد / إشارة',
       englishMeaning: 'One / Point',
-      explanationAr: 'رفع السبابة فقط للأعلى.',
+      explanationAr: 'رفع السبابة فقط.',
     };
   }
 
-  // QUESTION (Hooked index)
   if (indexHooked && !middleExtended && !ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -543,7 +727,6 @@ export function classifyHandLandmarks(
     };
   }
 
-  // Closed fist -> YES / FIST
   if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
     return {
       handDetected: true,
@@ -570,8 +753,378 @@ export function classifyHandLandmarks(
 }
 
 /**
- * Generates canonical 21-point normalized landmarks for key signs so camera-less
- * quick samples exercise the same geometric classifier as live webcam tracking.
+ * Full-body (33 pose landmarks) + Two-hand (Left + Right 21 landmarks each) Egyptian Sign Language classifier,
+ * grounded in Mendeley ESL dataset (DOI: 10.17632/39tbt2jd7r.1) spatial & handedness patterns.
+ */
+export function classifyBodyAndHands(
+  hands: HandDetectionInput[],
+  poseLandmarks?: HandLandmarkPoint[] | null,
+  mode: SignRecognitionMode = 'gestures'
+): LocalHandClassification | null {
+  const validHands = hands.filter((h) => h.landmarks && h.landmarks.length >= 21);
+  if (validHands.length === 0) return null;
+
+  const spatial = computeBodySpatialContext(validHands, poseLandmarks);
+  const primary = validHands[0];
+  const primaryCls = classifyHandLandmarks(primary.landmarks, mode);
+  if (!primaryCls) return null;
+
+  // In explicit name-spelling letters mode, keep single-letter output enriched with spatial info
+  if (mode === 'letters') {
+    return { ...primaryCls, spatial };
+  }
+
+  // --- TWO-HANDED EGYPTIAN SIGN LANGUAGE FUSION ---
+  if (validHands.length === 2) {
+    const clsA = classifyHandLandmarks(validHands[0].landmarks, 'gestures');
+    const clsB = classifyHandLandmarks(validHands[1].landmarks, 'gestures');
+    const featA = extractHandFeatures(validHands[0].landmarks);
+    const featB = extractHandFeatures(validHands[1].landmarks);
+
+    if (clsA && clsB && featA && featB) {
+      const bothOpen =
+        (clsA.detectedSignId === 'HELLO' || clsA.detectedSignId === 'STOP' || clsA.detectedSignId === 'COUNT_4') &&
+        (clsB.detectedSignId === 'HELLO' || clsB.detectedSignId === 'STOP' || clsB.detectedSignId === 'COUNT_4');
+
+      // Two open palms meeting at top or side-by-side in front of chest -> بيت / كتاب / مفيش
+      if (bothOpen) {
+        const tipDist = dist2D(validHands[0].landmarks[12], validHands[1].landmarks[12]) / spatial.shoulderWidth;
+        const wristDist = dist2D(validHands[0].landmarks[0], validHands[1].landmarks[0]) / spatial.shoulderWidth;
+        // Tips touching/converging closer than wrists -> triangle roof -> بيت / منزل
+        if (tipDist < 0.36 && tipDist < wristDist * 0.72) {
+          return {
+            handDetected: true,
+            isLetter: false,
+            detectedSignId: 'OPEN_HAND',
+            confidence: 93,
+            recognizedWordAr: 'بيت',
+            arabicMeaning: 'بيت / منزل (إشارة باليدين)',
+            englishMeaning: 'Home / House',
+            explanationAr: 'التقاء أطراف أصابع اليدين معاً لتشكيل سقف البيت أمام الجسم.',
+            datasetClass: 'manzel',
+            spatial,
+          };
+        }
+        if (spatial.handsRelation === 'together' || spatial.handsRelation === 'crossed') {
+          return {
+            handDetected: true,
+            isLetter: false,
+            detectedSignId: 'OPEN_HAND',
+            confidence: 93,
+            recognizedWordAr: 'كتاب',
+            arabicMeaning: 'كتاب (إشارة باليدين)',
+            englishMeaning: 'Book',
+            explanationAr: 'تقارب الكفين المفتوحتين أمام الصدر مثل فتح كتاب.',
+            datasetClass: 'ktab',
+            spatial,
+          };
+        }
+
+        if (spatial.handsRelation === 'apart') {
+          return {
+            handDetected: true,
+            isLetter: false,
+            detectedSignId: 'NO',
+            confidence: 92,
+            recognizedWordAr: 'مفيش',
+            arabicMeaning: 'مفيش / لا يوجد (باليدين)',
+            englishMeaning: 'Nothing / None',
+            explanationAr: 'فتح اليدين وتبعيدهما عن الصدر للتعبير عن عدم الوجود (مفيش).',
+            datasetClass: 'mafish',
+            spatial,
+          };
+        }
+
+        if (spatial.leftHandZone === 'head_face' || spatial.rightHandZone === 'head_face') {
+          return {
+            handDetected: true,
+            isLetter: false,
+            detectedSignId: 'HELLO',
+            confidence: 93,
+            recognizedWordAr: 'صباح الخير',
+            arabicMeaning: 'صباح الخير (ترحيب باليدين)',
+            englishMeaning: 'Good morning',
+            explanationAr: 'إشارة ترحيبية باليدين عند مستوى الوجه والرأس.',
+            datasetClass: 'sabhl elkheer',
+            spatial,
+          };
+        }
+
+        return {
+          handDetected: true,
+          isLetter: false,
+          detectedSignId: 'HELLO',
+          confidence: 94,
+          recognizedWordAr: 'أهلاً بيك',
+          arabicMeaning: 'أهلاً بيك / تحية باليدين',
+          englishMeaning: 'Welcome',
+          explanationAr: 'الكفان مفتوحتان أمام الصدر للترحيب.',
+          spatial,
+        };
+      }
+
+      // Two thumbs up -> حلو أوي / تمام أوي
+      if (clsA.detectedSignId === 'GOOD' && clsB.detectedSignId === 'GOOD') {
+        return {
+          handDetected: true,
+          isLetter: false,
+          detectedSignId: 'GOOD',
+          confidence: 95,
+          recognizedWordAr: 'حلو أوي',
+          arabicMeaning: 'حلو أوي / ممتاز جداً',
+          englishMeaning: 'Very good / Awesome',
+          explanationAr: 'رفع الإبهام في كلتا اليدين تأكيداً على الإعجاب (حلو أوي).',
+          datasetClass: 'helw awy',
+          spatial,
+        };
+      }
+
+      // Two fists together/crossed near chest -> عربية / صاحبي
+      if (
+        (clsA.detectedSignId === 'YES' || clsA.detectedSignId === 'FIST') &&
+        (clsB.detectedSignId === 'YES' || clsB.detectedSignId === 'FIST')
+      ) {
+        if (spatial.handsRelation === 'together' || spatial.handsRelation === 'crossed') {
+          return {
+            handDetected: true,
+            isLetter: false,
+            detectedSignId: 'LOVE',
+            confidence: 91,
+            recognizedWordAr: 'صاحبي',
+            arabicMeaning: 'صاحبي / صديقي (تشابك اليدين)',
+            englishMeaning: 'My friend',
+            explanationAr: 'تقارب القبضتين أمام الصدر إشارة للصداقة والمودة.',
+            datasetClass: 'sahby',
+            spatial,
+          };
+        }
+        return {
+          handDetected: true,
+          isLetter: false,
+          detectedSignId: 'ROBOT',
+          confidence: 91,
+          recognizedWordAr: 'عربية',
+          arabicMeaning: 'عربية / قيادة (كلتا اليدين)',
+          englishMeaning: 'Car / Steering',
+          explanationAr: 'القبضتان متوازيتان أمام الجذع بوضعية القيادة.',
+          datasetClass: '3rabia',
+          spatial,
+        };
+      }
+
+      // Two LOVE / chest -> بحب / واحشني
+      if (clsA.detectedSignId === 'LOVE' && clsB.detectedSignId === 'LOVE') {
+        return {
+          handDetected: true,
+          isLetter: false,
+          detectedSignId: 'LOVE',
+          confidence: 95,
+          recognizedWordAr: 'واحشني',
+          arabicMeaning: 'واحشني / بحبك جداً',
+          englishMeaning: 'Miss you / Love',
+          explanationAr: 'إشارة المحبة بكلتا اليدين أمام الصدر.',
+          datasetClass: 'whashny',
+          spatial,
+        };
+      }
+
+      // Two Question / Hooked / Pointing -> عامل إيه
+      if (clsA.detectedSignId === 'QUESTION' || clsB.detectedSignId === 'QUESTION') {
+        return {
+          handDetected: true,
+          isLetter: false,
+          detectedSignId: 'QUESTION',
+          confidence: 91,
+          recognizedWordAr: 'عامل إيه',
+          arabicMeaning: 'عامل إيه / كيف حالك؟',
+          englishMeaning: 'How are you?',
+          explanationAr: 'حركة الاستفهام باليدين أمام الصدر للسؤال عن الحال.',
+          datasetClass: '3amel eh',
+          spatial,
+        };
+      }
+
+      // Two-hand PEACE -> السلام عليكم / هدوء
+      if (clsA.detectedSignId === 'PEACE' && clsB.detectedSignId === 'PEACE') {
+        return {
+          handDetected: true,
+          isLetter: false,
+          detectedSignId: 'PEACE',
+          confidence: 94,
+          recognizedWordAr: 'أخويا',
+          arabicMeaning: 'أخويا / سلام وتوافق',
+          englishMeaning: 'Brother / Peace',
+          explanationAr: 'رفع السبابة والوسطى في اليدين أمام الصدر.',
+          datasetClass: 'akhoia',
+          spatial,
+        };
+      }
+    }
+  }
+
+  // --- SINGLE-HAND + BODY LOCATION DISAMBIGUATION (requires Pose spatial context) ---
+  const activeZone: BodyZone =
+    spatial.rightHandZone !== 'none' ? spatial.rightHandZone : spatial.leftHandZone;
+  const primaryFeatures = extractHandFeatures(primary.landmarks);
+
+  if (spatial.bodyDetected && activeZone !== 'none') {
+    if (primaryCls.detectedSignId === 'HELLO') {
+      if (activeZone === 'above_head') {
+        return {
+          ...primaryCls,
+          detectedSignId: 'RAISE_HAND',
+          recognizedWordAr: 'سبحان الله',
+          arabicMeaning: 'سبحان الله / فوق الرأس',
+          englishMeaning: 'Glory to God / Raised High',
+          explanationAr: 'الكف المفتوح مرفوع فوق الرأس.',
+          datasetClass: 'sabhlala',
+          spatial,
+        };
+      }
+      if (activeZone === 'head_face') {
+        return {
+          ...primaryCls,
+          recognizedWordAr: 'صباح الخير',
+          arabicMeaning: 'صباح الخير (عند الوجه)',
+          englishMeaning: 'Good morning',
+          explanationAr: 'الكف المفتوح عند مستوى الرأس والجبهة للتحية.',
+          datasetClass: 'sabhl elkheer',
+          spatial,
+        };
+      }
+      if (activeZone === 'mouth_chin') {
+        return {
+          ...primaryCls,
+          detectedSignId: 'THANK_YOU',
+          recognizedWordAr: 'شكراً',
+          arabicMeaning: 'شكراً (من عند الفم/الذقن)',
+          englishMeaning: 'Thank you',
+          explanationAr: 'اليد مفرودة عند الفم/الذقن للتقدير والشكر.',
+          spatial,
+        };
+      }
+      if (activeZone === 'chest_heart') {
+        return {
+          ...primaryCls,
+          recognizedWordAr: 'عايز',
+          arabicMeaning: 'عايز / أهلاً (عند الصدر)',
+          englishMeaning: 'Want / Welcome',
+          explanationAr: 'اليد المفتوحة أمام الصدر والقلب.',
+          datasetClass: '3waz',
+          spatial,
+        };
+      }
+    }
+
+    if (primaryCls.detectedSignId === 'GOOD') {
+      if (activeZone === 'mouth_chin') {
+        return {
+          ...primaryCls,
+          recognizedWordAr: 'تمام',
+          arabicMeaning: 'تمام / كويس (عند الذقن)',
+          englishMeaning: 'Fine / Great',
+          explanationAr: 'إشارة الإبهام للأعلى قرب الذقن للتأكيد (تمام).',
+          datasetClass: 'tmam',
+          spatial,
+        };
+      }
+      if (activeZone === 'chest_heart') {
+        return {
+          ...primaryCls,
+          recognizedWordAr: 'حلو أوي',
+          arabicMeaning: 'حلو أوي (عند الصدر)',
+          englishMeaning: 'Very nice',
+          explanationAr: 'إشارة الإبهام للأعلى أمام الصدر.',
+          datasetClass: 'helw awy',
+          spatial,
+        };
+      }
+    }
+
+    if (primaryCls.detectedSignId === 'POINT') {
+      if (activeZone === 'head_face') {
+        return {
+          ...primaryCls,
+          recognizedWordAr: 'خلي بالك',
+          arabicMeaning: 'خلي بالك / انتبه (عند العين/الرأس)',
+          englishMeaning: 'Be careful / Pay attention',
+          explanationAr: 'السبابة تشير بجانب العين والوجه للتنبيه.',
+          datasetClass: 'khaly balk',
+          spatial,
+        };
+      }
+      if (activeZone === 'mouth_chin') {
+        return {
+          ...primaryCls,
+          detectedSignId: 'NO',
+          recognizedWordAr: 'كداب',
+          arabicMeaning: 'كداب (عند الذقن/الفم)',
+          englishMeaning: 'Liar',
+          explanationAr: 'السبابة أمام الذقن والفم.',
+          datasetClass: 'kdab',
+          spatial,
+        };
+      }
+      if (primaryFeatures?.pointingDown || activeZone === 'torso_neutral') {
+        return {
+          ...primaryCls,
+          recognizedWordAr: primaryFeatures?.pointingDown ? 'دلوقتي' : 'واحد',
+          arabicMeaning: primaryFeatures?.pointingDown ? 'دلوقتي / الآن' : 'واحد / إشارة',
+          englishMeaning: primaryFeatures?.pointingDown ? 'Now' : 'One / Point',
+          explanationAr: primaryFeatures?.pointingDown
+            ? 'السبابة متجهة للأسفل أمام الجذع للدلالة على الآن (دلوقتي).'
+            : 'رفع السبابة أمام الجسم.',
+          datasetClass: primaryFeatures?.pointingDown ? 'delwaty' : undefined,
+          spatial,
+        };
+      }
+    }
+
+    if (primaryCls.detectedSignId === 'LOVE' && activeZone === 'chest_heart') {
+      return {
+        ...primaryCls,
+        recognizedWordAr: 'بحب',
+        arabicMeaning: 'بحب / أحبك (عند القلب)',
+        englishMeaning: 'Love',
+        explanationAr: 'إشارة المحبة عند الصدر والقلب.',
+        datasetClass: 'bhab',
+        spatial,
+      };
+    }
+
+    if (primaryCls.detectedSignId === 'YES' && activeZone === 'chest_heart') {
+      return {
+        ...primaryCls,
+        recognizedWordAr: 'تعبان',
+        arabicMeaning: 'قبضة عند الصدر (تعبان / نعم)',
+        englishMeaning: 'Tired / Confirm',
+        explanationAr: 'إمساك الصدر أو القبضة أمام القلب.',
+        datasetClass: 't3ban',
+        spatial,
+      };
+    }
+
+    if (primaryCls.detectedSignId === 'PEACE' && activeZone === 'head_face') {
+      return {
+        ...primaryCls,
+        recognizedWordAr: 'يضحك',
+        arabicMeaning: 'يضحك / سلام (عند الوجه)',
+        englishMeaning: 'Smile / Peace',
+        explanationAr: 'رفع الإصبعين بجانب الوجه.',
+        datasetClass: 'yadhk',
+        spatial,
+      };
+    }
+  }
+
+  return {
+    ...primaryCls,
+    spatial,
+  };
+}
+
+/**
+ * Generates canonical 21-point normalized landmarks for single-hand or dual-hand + pose samples.
  */
 export function getSampleLandmarksForSign(signId: SignId): HandLandmarkPoint[] {
   const pts: HandLandmarkPoint[] = new Array(21).fill(null).map(() => ({ x: 0.5, y: 0.5 }));
@@ -663,9 +1216,179 @@ export function getSampleLandmarksForSign(signId: SignId): HandLandmarkPoint[] {
       extend(13, 14, 15, 16, 0.02);
       extend(17, 18, 19, 20, 0.05);
       break;
+    case 'POINT':
+      extend(5, 6, 7, 8, 0);
+      break;
     case 'YES':
     default:
       break;
   }
   return pts;
+}
+
+/**
+ * Generates canonical 33-point body pose landmarks (upper body centered in frame)
+ * + positioned hand landmarks so dual-hand & body-anchored dataset signs can be tested deterministically.
+ */
+export function getCanonicalPoseLandmarks(): HandLandmarkPoint[] {
+  const pose: HandLandmarkPoint[] = new Array(33).fill(null).map(() => ({ x: 0.5, y: 0.5, visibility: 0.99 }));
+  pose[0] = { x: 0.5, y: 0.22, visibility: 0.99 }; // Nose
+  pose[2] = { x: 0.47, y: 0.19, visibility: 0.99 }; // Left eye
+  pose[5] = { x: 0.53, y: 0.19, visibility: 0.99 }; // Right eye
+  pose[9] = { x: 0.48, y: 0.27, visibility: 0.99 }; // Mouth L
+  pose[10] = { x: 0.52, y: 0.27, visibility: 0.99 }; // Mouth R
+  pose[11] = { x: 0.34, y: 0.44, visibility: 0.99 }; // Left shoulder
+  pose[12] = { x: 0.66, y: 0.44, visibility: 0.99 }; // Right shoulder
+  pose[13] = { x: 0.28, y: 0.62, visibility: 0.99 }; // Left elbow
+  pose[14] = { x: 0.72, y: 0.62, visibility: 0.99 }; // Right elbow
+  pose[15] = { x: 0.34, y: 0.66, visibility: 0.99 }; // Left wrist
+  pose[16] = { x: 0.66, y: 0.66, visibility: 0.99 }; // Right wrist
+  pose[23] = { x: 0.38, y: 0.86, visibility: 0.99 }; // Left hip
+  pose[24] = { x: 0.62, y: 0.86, visibility: 0.99 }; // Right hip
+  return pose;
+}
+
+function translateHandLandmarks(
+  lm: HandLandmarkPoint[],
+  targetCenterX: number,
+  targetCenterY: number,
+  scale = 0.55
+): HandLandmarkPoint[] {
+  const cx = (lm[0].x + lm[9].x) * 0.5;
+  const cy = (lm[0].y + lm[9].y) * 0.5;
+  return lm.map((p) => ({
+    x: targetCenterX + (p.x - cx) * scale,
+    y: targetCenterY + (p.y - cy) * scale,
+  }));
+}
+
+export type DatasetSampleKey =
+  | 'sabhl_elkheer'
+  | '3amel_eh'
+  | 'tmam'
+  | 'bhab'
+  | 'ktab'
+  | 'manzel'
+  | 'mafish'
+  | 'khaly_balk'
+  | 'helw_awy';
+
+export function getSampleBodyAndHandsForDatasetSign(sample: DatasetSampleKey): {
+  hands: HandDetectionInput[];
+  pose: HandLandmarkPoint[];
+} {
+  const pose = getCanonicalPoseLandmarks();
+  switch (sample) {
+    case 'sabhl_elkheer':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.58, 0.18),
+          },
+        ],
+      };
+    case 'tmam':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('GOOD'), 0.54, 0.28),
+          },
+        ],
+      };
+    case 'bhab':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('LOVE'), 0.51, 0.56),
+          },
+        ],
+      };
+    case 'khaly_balk':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('POINT'), 0.56, 0.21),
+          },
+        ],
+      };
+    case 'ktab':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.54, 0.58),
+          },
+          {
+            handedness: 'Left',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.46, 0.58),
+          },
+        ],
+      };
+    case 'manzel': {
+      // Roof triangle: fingertips lean inward closer than wrists
+      const rOpen = translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.57, 0.54);
+      const lOpen = translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.43, 0.54);
+      rOpen[12] = { x: 0.505, y: 0.40 };
+      lOpen[12] = { x: 0.495, y: 0.40 };
+      return {
+        pose,
+        hands: [
+          { handedness: 'Right', landmarks: rOpen },
+          { handedness: 'Left', landmarks: lOpen },
+        ],
+      };
+    }
+    case 'mafish':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.72, 0.56),
+          },
+          {
+            handedness: 'Left',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('HELLO'), 0.28, 0.56),
+          },
+        ],
+      };
+    case 'helw_awy':
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('GOOD'), 0.58, 0.56),
+          },
+          {
+            handedness: 'Left',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('GOOD'), 0.42, 0.56),
+          },
+        ],
+      };
+    case '3amel_eh':
+    default:
+      return {
+        pose,
+        hands: [
+          {
+            handedness: 'Right',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('QUESTION'), 0.57, 0.56),
+          },
+          {
+            handedness: 'Left',
+            landmarks: translateHandLandmarks(getSampleLandmarksForSign('QUESTION'), 0.43, 0.56),
+          },
+        ],
+      };
+  }
 }

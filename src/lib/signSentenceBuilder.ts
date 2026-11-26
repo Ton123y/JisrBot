@@ -45,8 +45,8 @@ export function tokensToComposedText(tokens: CapturedSignToken[]): string {
 
 /**
  * Local fast heuristic that turns common isolated sign-language word sequences
- * into natural, readable Arabic sentences immediately while typing/signing.
- * Returns null if the sequence is already a full sentence or needs AI refinement.
+ * into natural, clear Egyptian Arabic sentences immediately while typing/signing.
+ * Returns null if the sequence is empty or needs AI refinement.
  */
 export function suggestLocalArabicSentence(rawText: string): string | null {
   const clean = rawText.replace(/\s+/g, ' ').trim();
@@ -55,7 +55,6 @@ export function suggestLocalArabicSentence(rawText: string): string | null {
   const words = clean.split(' ').filter(Boolean);
   if (words.length === 0) return null;
 
-  // Already looks like a rich structured sentence (>= 5 words or ends with punctuation)
   if (words.length >= 6 && /[.!؟]$/.test(clean)) {
     return null;
   }
@@ -65,76 +64,76 @@ export function suggestLocalArabicSentence(rawText: string): string | null {
 
   const hasGreeting = hasAny(['مرحباً', 'مرحبا', 'أهلاً', 'اهلا', 'سلام']);
   const hasThanks = hasAny(['شكراً', 'شكرا']);
-  const hasYes = hasAny(['نعم', 'موافق', 'تم', 'ممتاز']);
-  const hasNo = hasAny(['لا', 'توقف', 'خطأ']);
-  const hasHelp = hasAny(['مساعدة', 'ساعدني', 'أحتاج']);
-  const hasQuestion = hasAny(['سؤال', 'كيف', 'أين', 'ما', 'هل']);
-  const hasLove = hasAny(['أحبك', 'تقدير']);
-  const hasCall = hasAny(['اتصل', 'هاتف', 'تواصل']);
+  const hasYes = hasAny(['نعم', 'موافق', 'تم', 'ممتاز', 'أيوه', 'تمام']);
+  const hasNo = hasAny(['لا', 'لأ', 'توقف', 'خطأ', 'اطفي']);
+  const hasHelp = hasAny(['مساعدة', 'ساعدني', 'أحتاج', 'محتاج']);
+  const hasQuestion = hasAny(['سؤال', 'كيف', 'ازيك', 'أين', 'فين', 'ما', 'إيه', 'هل']);
+  const hasLove = hasAny(['أحبك', 'بحبك', 'تقدير']);
+  const hasCall = hasAny(['اتصل', 'هاتف', 'تواصل', 'كلمني']);
   const hasLight = hasAny(['مصباح', 'نور', 'ضوء', 'إضاءة']);
   const hasRobot = hasAny(['روبوت', 'ذراع', 'يد', 'موتور', 'محرك']);
 
-  // Specific robot command phrases
+  // Specific robot command phrases in Egyptian Arabic
   if (hasLight && hasNo) {
-    return 'من فضلك أطفئ المصباح الآن.';
+    return 'لو سمحت اطفي نور الروبوت دلوقتي.';
   }
   if (hasLight && (hasYes || hasHelp || words.length <= 3)) {
-    return 'من فضلك شغّل مصباح الروبوت.';
+    return 'لو سمحت شغّل نور الروبوت.';
   }
-  if (hasRobot && hasAny(['توقف', 'إيقاف'])) {
-    return 'أوقف حركة الروبوت الآن من فضلك.';
+  if (hasRobot && hasAny(['توقف', 'إيقاف', 'وقّف', 'وقف'])) {
+    return 'وقّف حركة الروبوت دلوقتي لو سمحت.';
   }
   if (hasRobot && hasQuestion) {
-    return 'كيف حال الروبوت الآن وهل يعمل بشكل سليم؟';
+    return 'إيه أخبار الروبوت دلوقتي وهل شغال تمام؟';
   }
   if (hasRobot && hasYes) {
-    return 'نعم، شغّل الروبوت ونفّذ الحركة المطلوبة.';
+    return 'تمام، شغّل الروبوت ونفّذ الحركة المطلوبة.';
   }
 
-  // Conversational phrases
+  // Conversational phrases in Egyptian Arabic
   if (hasGreeting && hasHelp) {
-    return 'مرحباً، أحتاج إلى مساعدة من فضلك.';
+    return 'أهلاً، محتاج مساعدة لو سمحت.';
   }
   if (hasGreeting && hasQuestion) {
-    return 'مرحباً، لدي سؤال أريد أن أسأله لك.';
+    return 'أهلاً، عندي سؤال عايز أسألهولك.';
   }
   if (hasGreeting && hasThanks) {
-    return 'مرحباً، شكراً جزيلاً لك على مساعدتك.';
+    return 'أهلاً بيك، شكراً جداً على مساعدتك.';
   }
   if (hasGreeting && hasLove) {
-    return 'مرحباً، أتمنى لك يوماً سعيداً وكل التقدير.';
+    return 'أهلاً بيك، ربنا يسعد يومك، كل الشكر والتقدير.';
   }
   if (hasGreeting && hasYes) {
-    return 'مرحباً، نعم أنا مستعد للبدء الآن.';
+    return 'أهلاً، أيوه أنا جاهز نبدأ دلوقتي.';
   }
   if (hasGreeting && words.length === 1) {
-    return 'مرحباً، كيف يمكنك مساعدتي اليوم؟';
+    return 'أهلاً بيك، تقدر تساعدني إزاي النهارده؟';
   }
   if (hasHelp && hasQuestion) {
-    return 'هل يمكنك مساعدتي والإجابة عن سؤالي؟';
+    return 'ممكن تساعدني وتجاوبني على سؤالي؟';
   }
   if (hasHelp && words.length <= 2) {
-    return 'أحتاج إلى مساعدة من فضلك.';
+    return 'محتاج مساعدة لو سمحت.';
   }
   if (hasQuestion && words.length <= 2) {
-    return 'لدي سؤال مهم، هل يمكنك الإجابة عليه؟';
+    return 'عندي سؤال مهم، ممكن تجاوبني عليه؟';
   }
   if (hasCall) {
     return hasGreeting
-      ? 'مرحباً، أريد التواصل معك الآن.'
-      : 'أريد الاتصال والتواصل معك من فضلك.';
+      ? 'أهلاً، عايز أتواصل معاك دلوقتي.'
+      : 'عايز أتصل وأتواصل معاك لو سمحت.';
   }
   if (hasThanks && hasYes) {
-    return 'شكراً جزيلاً، هذا ممتاز جداً.';
+    return 'شكراً جداً، ده ممتاز خالص.';
   }
   if (hasThanks && words.length === 1) {
-    return 'شكراً جزيلاً لك.';
+    return 'شكراً ليك جداً.';
   }
   if (hasLove && words.length <= 2) {
-    return 'أشكرك وأقدرك كثيراً.';
+    return 'شكراً ليك وبقدّرك جداً.';
   }
-  if (hasAny(['توقف']) && words.length === 1) {
-    return 'توقف لحظة من فضلك.';
+  if (hasAny(['توقف', 'وقّف']) && words.length === 1) {
+    return 'استنى لحظة لو سمحت.';
   }
 
   // Fallback tidy punctuation for 2+ raw words
@@ -146,6 +145,45 @@ export function suggestLocalArabicSentence(rawText: string): string | null {
   return null;
 }
 
+/**
+ * Normalizes a sentence segment by ensuring clean spacing and ending punctuation.
+ */
+export function normalizeSentenceSegment(segment: string): string {
+  const clean = segment.replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  return /[.!؟]$/.test(clean) ? clean : `${clean}.`;
+}
+
+/**
+ * Appends a newly formed sentence into an array of accumulated sentences,
+ * preserving all previously gathered sentences without losing anything the user signed.
+ */
+export function appendAccumulatedSentence(
+  existingSentences: string[],
+  newSegment: string
+): string[] {
+  const normalized = normalizeSentenceSegment(newSegment);
+  if (!normalized) return existingSentences;
+  return [...existingSentences, normalized];
+}
+
+/**
+ * Combines all accumulated sentences + any active unsaved draft into one coherent multi-sentence message.
+ */
+export function combineAccumulatedSignMessage(
+  accumulatedSentences: string[],
+  activeDraft: string
+): string {
+  const parts = accumulatedSentences
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const draft = activeDraft.replace(/\s+/g, ' ').trim();
+  if (draft) {
+    parts.push(draft);
+  }
+  return parts.join(' ').trim();
+}
+
 export const QUICK_SENTENCE_SUGGESTIONS: Array<{
   id: string;
   label: string;
@@ -155,44 +193,44 @@ export const QUICK_SENTENCE_SUGGESTIONS: Array<{
 }> = [
   {
     id: 'greet',
-    label: 'مرحباً',
+    label: 'أهلاً بيك',
     word: 'مرحباً',
-    sentence: 'مرحباً، كيف حالك اليوم؟',
+    sentence: 'أهلاً بيك، عامل إيه النهارده؟',
     signId: 'HELLO',
   },
   {
     id: 'need_help',
-    label: 'أحتاج مساعدة',
+    label: 'محتاج مساعدة',
     word: 'مساعدة',
-    sentence: 'أحتاج إلى مساعدة من فضلك.',
+    sentence: 'محتاج مساعدة لو سمحت.',
     signId: 'HELP',
   },
   {
     id: 'have_question',
-    label: 'لدي سؤال',
+    label: 'عندي سؤال',
     word: 'سؤال',
-    sentence: 'لدي سؤال أريد طرحه عليك.',
+    sentence: 'عندي سؤال عايز أسألهولك.',
     signId: 'QUESTION',
   },
   {
     id: 'turn_on_light',
-    label: 'شغّل المصباح',
-    word: 'شغّل المصباح',
-    sentence: 'شغّل مصباح الروبوت من فضلك.',
+    label: 'شغّل نور الروبوت',
+    word: 'نور',
+    sentence: 'شغّل نور الروبوت لو سمحت.',
     signId: 'LIGHT',
   },
   {
     id: 'stop_robot',
-    label: 'أوقف الروبوت',
+    label: 'وقّف الروبوت',
     word: 'توقف',
-    sentence: 'أوقف الروبوت الآن من فضلك.',
+    sentence: 'وقّف حركة الروبوت دلوقتي.',
     signId: 'STOP',
   },
   {
     id: 'thanks',
-    label: 'شكراً لك',
+    label: 'شكراً ليك',
     word: 'شكراً',
-    sentence: 'شكراً جزيلاً لك.',
+    sentence: 'شكراً ليك جداً.',
     signId: 'THANK_YOU',
   },
 ];

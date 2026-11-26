@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  appendAccumulatedSentence,
+  combineAccumulatedSignMessage,
   suggestLocalArabicSentence,
   tokensToComposedText,
   type CapturedSignToken,
@@ -22,17 +24,28 @@ test('tokensToComposedText joins consecutive letters into a word and separates s
   assert.equal(tokensToComposedText(tokens), 'مرحباً أنا سعيد شكراً');
 });
 
-test('suggestLocalArabicSentence converts raw sign tokens into clear Arabic sentences', () => {
+test('suggestLocalArabicSentence converts raw sign tokens into clear Egyptian Arabic sentences', () => {
   assert.equal(
     suggestLocalArabicSentence('مرحباً مساعدة'),
-    'مرحباً، أحتاج إلى مساعدة من فضلك.'
+    'أهلاً، محتاج مساعدة لو سمحت.'
   );
   assert.equal(
     suggestLocalArabicSentence('مرحباً سؤال'),
-    'مرحباً، لدي سؤال أريد أن أسأله لك.'
+    'أهلاً، عندي سؤال عايز أسألهولك.'
   );
   assert.equal(
     suggestLocalArabicSentence('توقف روبوت'),
-    'أوقف حركة الروبوت الآن من فضلك.'
+    'وقّف حركة الروبوت دلوقتي لو سمحت.'
+  );
+});
+
+test('appendAccumulatedSentence and combineAccumulatedSignMessage keep all signed sentences together', () => {
+  let acc: string[] = [];
+  acc = appendAccumulatedSentence(acc, 'أهلاً، محتاج مساعدة');
+  acc = appendAccumulatedSentence(acc, 'لو سمحت شغّل نور الروبوت.');
+  assert.deepEqual(acc, ['أهلاً، محتاج مساعدة.', 'لو سمحت شغّل نور الروبوت.']);
+  assert.equal(
+    combineAccumulatedSignMessage(acc, 'وشكراً جداً'),
+    'أهلاً، محتاج مساعدة. لو سمحت شغّل نور الروبوت. وشكراً جداً'
   );
 });
